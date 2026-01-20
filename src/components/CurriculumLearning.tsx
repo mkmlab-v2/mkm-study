@@ -222,17 +222,30 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
     setIsLoading(true);
 
     try {
+      // 수능 역추적 매핑 검색
+      const examMappings = findExamMappingsByUnit(unit, subject);
+      const examAlert = generateExamMappingAlert(examMappings);
+      
       if (subject === 'math') {
         // 수학: 문제 생성 및 개념 설명
+        let context = '';
+        if (examAlert) {
+          context = `${examAlert}\n\n`;
+        }
+        
         const [problem, explanation] = await Promise.all([
           generateMathProblem(selectedGrade, topic),
           explainMathConcept(topic, selectedGrade)
         ]);
-        setCurrentProblem(problem);
+        setCurrentProblem(context + problem);
         setCurrentExplanation(explanation);
       } else {
         // 영어: 문장 생성 및 설명
-        const prompt = `${selectedGrade} ${unit} 단원의 "${topic}" 주제에 대한 학습 문장을 생성해주세요.
+        let prompt = '';
+        if (examAlert) {
+          prompt = `${examAlert}\n\n`;
+        }
+        prompt += `${selectedGrade} ${unit} 단원의 "${topic}" 주제에 대한 학습 문장을 생성해주세요.
         
 다음 형식으로 제공해주세요:
 1. 영어 문장 (EBS 수능특강 수준)
@@ -407,6 +420,16 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
                         {unitProgress.topicsProgress.filter(t => t).length} / {unitProgress.topicsProgress.length} 완료
                       </p>
                     )}
+                    {/* 수능 역추적 알림 */}
+                    {(() => {
+                      const examMappings = findExamMappingsByUnit(unitData.unit, subject);
+                      const examAlert = generateExamMappingAlert(examMappings);
+                      return examAlert ? (
+                        <p className="text-xs text-yellow-400 mt-1 font-medium">
+                          🎯 {examAlert.replace('🎯 수능 연결: ', '')}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
                 <ArrowRight
