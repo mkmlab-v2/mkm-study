@@ -289,20 +289,24 @@ def generate_problem_with_gemma3(
 def save_problem_to_api(problem_data: Dict[str, Any]) -> bool:
     """생성된 문제를 VPS API에 저장"""
     try:
+        # 백엔드 API 형식에 맞춘 요청 데이터 (content_data를 직접 전달)
+        content_data = {
+            "subject": problem_data.get("subject", "math"),
+            "topic": problem_data.get("unit", ""),
+            "content": problem_data.get("problem", ""),
+            "difficulty": problem_data.get("difficulty", "medium"),
+            "ebsCurriculum": "Athena Generator",
+            "keyTopics": problem_data.get("topics", []),
+            "vector_4d": problem_data.get("vector_4d", {}),
+            "constitution": problem_data.get("constitution"),
+            "createdAt": problem_data.get("createdAt"),
+            "updatedAt": problem_data.get("createdAt")
+        }
+        
         response = requests.post(
             f"{LEARNING_API_BASE}/api/v1/learning/store",
-            json={
-                "subject": problem_data.get("subject", "math"),
-                "topic": problem_data.get("unit", ""),
-                "content": problem_data.get("problem", ""),
-                "difficulty": problem_data.get("difficulty", "medium"),
-                "ebsCurriculum": "Athena Generator",
-                "keyTopics": problem_data.get("topics", []),
-                "vector_4d": problem_data.get("vector_4d", {}),
-                "constitution": problem_data.get("constitution"),
-                "createdAt": problem_data.get("createdAt"),
-                "updatedAt": problem_data.get("createdAt")
-            },
+            json=content_data,  # 백엔드 API는 content_data를 직접 받음
+            headers={"Content-Type": "application/json"},
             timeout=10
         )
         
@@ -310,9 +314,16 @@ def save_problem_to_api(problem_data: Dict[str, Any]) -> bool:
             logger.info(f"✅ 문제 저장 완료: {problem_data.get('unit', 'Unknown')}")
             return True
         else:
-            logger.warning(f"⚠️ 문제 저장 실패: {response.status_code}")
+            try:
+                error_text = response.text
+            except:
+                error_text = str(response.status_code)
+            logger.warning(f"⚠️ 문제 저장 실패 ({response.status_code}): {error_text}")
             return False
             
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"⚠️ VPS API 서버 연결 실패 (서버가 실행 중이지 않을 수 있습니다): {LEARNING_API_BASE}")
+        return False
     except Exception as e:
         logger.error(f"❌ 문제 저장 오류: {e}")
         return False
