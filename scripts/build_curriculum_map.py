@@ -53,6 +53,16 @@ EBS_CURRICULUM_URLS = {
 # 표준 교육과정 구조 (2022 개정 교육과정 기반)
 STANDARD_CURRICULUM = {
     "math": {
+        "초6": [
+            {"unit": "분수의 나눗셈", "topics": ["분수 나눗셈", "분수와 자연수의 나눗셈", "분수 나눗셈의 활용"]},
+            {"unit": "소수의 나눗셈", "topics": ["소수 나눗셈", "소수와 자연수의 나눗셈", "소수 나눗셈의 활용"]},
+            {"unit": "비와 비율", "topics": ["비", "비율", "비율의 활용"]},
+            {"unit": "원의 넓이", "topics": ["원의 넓이 구하기", "원의 넓이와 원주율", "원의 넓이 활용"]},
+            {"unit": "직육면체의 부피와 겉넓이", "topics": ["직육면체의 부피", "직육면체의 겉넓이", "부피와 겉넓이의 관계"]},
+            {"unit": "비례식과 비례배분", "topics": ["비례식", "비례배분", "비례식의 활용"]},
+            {"unit": "원기둥, 원뿔, 구", "topics": ["원기둥", "원뿔", "구"]},
+            {"unit": "자료의 정리", "topics": ["도수분포표", "히스토그램", "자료 해석"]}
+        ],
         "중1": [
             {"unit": "소인수분해", "topics": ["소수와 합성수", "소인수분해", "최대공약수와 최소공배수"]},
             {"unit": "정수와 유리수", "topics": ["정수", "유리수", "유리수의 사칙연산"]},
@@ -101,6 +111,16 @@ STANDARD_CURRICULUM = {
         ]
     },
     "english": {
+        "초6": [
+            {"unit": "인사와 자기소개", "topics": ["Hello, Hi", "My name is...", "Nice to meet you"]},
+            {"unit": "숫자와 색깔", "topics": ["Numbers 1-100", "Colors", "Counting"]},
+            {"unit": "가족과 친구", "topics": ["Family members", "This is my...", "Who is this?"]},
+            {"unit": "학교생활", "topics": ["School subjects", "Classroom English", "School activities"]},
+            {"unit": "하루 일과", "topics": ["Daily routines", "What time is it?", "I get up at..."]},
+            {"unit": "음식과 음료", "topics": ["Food and drinks", "I like...", "What do you want?"]},
+            {"unit": "동물과 자연", "topics": ["Animals", "Nature", "I can see..."]},
+            {"unit": "과거 이야기", "topics": ["Past tense", "Yesterday", "What did you do?"]}
+        ],
         "중1": [
             {"unit": "인사와 자기소개", "topics": ["인사 표현", "자기소개", "기본 대화"]},
             {"unit": "현재시제", "topics": ["be동사", "일반동사", "현재진행형"]},

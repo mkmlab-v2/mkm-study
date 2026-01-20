@@ -10,7 +10,7 @@ export interface UserProfile {
   birthMinute: number;
   
   // 학년 정보 (자동 계산 또는 수동 입력)
-  currentGrade?: '중1' | '중2' | '중3' | '고1' | '고2' | '고3';
+  currentGrade?: '초6' | '중1' | '중2' | '중3' | '고1' | '고2' | '고3';
   
   // 건강정보
   height: number; // cm
@@ -58,7 +58,7 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
     },
   });
 
-  const calculateGrade = (birthYear: number): '중1' | '중2' | '중3' | '고1' | '고2' | '고3' => {
+  const calculateGrade = (birthYear: number): '초6' | '중1' | '중2' | '중3' | '고1' | '고2' | '고3' => {
     const currentYear = new Date().getFullYear();
     const age = currentYear - birthYear;
     
@@ -66,17 +66,23 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
     const currentMonth = new Date().getMonth() + 1;
     const adjustedAge = currentMonth >= 3 ? age : age - 1;
     
-    // 중학교: 13-15세, 고등학교: 16-18세
-    if (adjustedAge >= 13 && adjustedAge <= 15) {
+    // 초등학교 6학년: 12세 (만 11-12세)
+    if (adjustedAge === 12) {
+      return '초6';
+    }
+    // 중학교: 13-15세
+    else if (adjustedAge >= 13 && adjustedAge <= 15) {
       const middleGrade = adjustedAge - 12; // 13→중1, 14→중2, 15→중3
       return `중${middleGrade}` as '중1' | '중2' | '중3';
-    } else if (adjustedAge >= 16 && adjustedAge <= 18) {
+    }
+    // 고등학교: 16-18세
+    else if (adjustedAge >= 16 && adjustedAge <= 18) {
       const highGrade = adjustedAge - 15; // 16→고1, 17→고2, 18→고3
       return `고${highGrade}` as '고1' | '고2' | '고3';
     }
     
-    // 기본값: 중1
-    return '중1';
+    // 기본값: 초6 (12세 미만) 또는 중1 (13세 이상)
+    return adjustedAge < 13 ? '초6' : '중1';
   };
 
   const handleNext = () => {
