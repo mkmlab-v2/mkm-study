@@ -157,7 +157,7 @@ export async function connectToVPSGemma3(): Promise<{ connected: boolean; model?
 /**
  * VPS Gemma3에 질문하기 (재시도 로직 포함)
  */
-export async function askGemma3(prompt: string, context?: string): Promise<string> {
+export async function askGemma3(prompt: string, context?: string, model?: string): Promise<string> {
   const startTime = Date.now();
   const retryCount = 3;
   
@@ -167,10 +167,11 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
   
   console.log('[Gemma3] 요청 시작:', { prompt: prompt.substring(0, 50) + '...', url: GEMMA3_URL });
   
-  // 모델 자동 선택: llama3.2:3b 우선, 없으면 gemma3:4b 폴백
+  // 모델 선택: 사용자 지정 모델 우선, 없으면 llama3.2:3b, 최종 폴백 gemma3:4b
+  const userModel = model; // 사용자가 지정한 모델 (mkm-math, mkm-english 등)
   const preferredModel = 'llama3.2:3b';
   const fallbackModel = 'gemma3:4b';
-  let currentModel = preferredModel;
+  let currentModel = userModel || preferredModel; // 사용자 모델 우선
   let hasTriedFallback = false;
   
   let lastError: Error | null = null;
