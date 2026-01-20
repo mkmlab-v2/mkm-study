@@ -10,6 +10,7 @@ import EnglishLearning from './EnglishLearning';
 import CurriculumLearning from './CurriculumLearning';
 import RPPGVideoFeed from './RPPGVideoFeed';
 import { Vector4D, ZodiacAnimal, CharacterTrait, CoinBalance } from '../utils/types';
+import type { RPPGResult } from '../utils/rppgProcessor';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
 import { loadCoinBalance, saveCoinBalance, earnCoins, spendCoins, calculateCoinsFromStudy } from '../utils/coinSystem';
 import { answerQuestion, answerQuestionStreaming } from '../utils/api';
@@ -38,6 +39,7 @@ export default function MKMStudyApp() {
   const [drowsinessAlert, setDrowsinessAlert] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [rppgState, setRppgState] = useState<RPPGResult | undefined>(undefined);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
   const currentTabRef = useRef<TabType>('dashboard');
@@ -319,6 +321,9 @@ export default function MKMStudyApp() {
               <h3 className="text-sm font-bold text-white mb-3">실시간 모니터링</h3>
               <RPPGVideoFeed
                 onHeartRate={(result) => {
+                  // RPPG 상태 저장 (CurriculumLearning에 전달용)
+                  setRppgState(result);
+                  
                   // 심박수 기반 M 차원 업데이트
                   if (result.heartRate) {
                     setCurrentState(prev => ({

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target } from 'lucide-react';
+import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target, AlertCircle } from 'lucide-react';
 import { generateMathProblem, explainMathConcept } from '../utils/api';
 import { answerQuestion } from '../utils/api';
+import { adjustLearningDifficulty, isOptimalForLearning, convertRPPGResultToState } from '../utils/adaptiveLearningScheduler';
+import type { RPPGResult } from '../utils/rppgProcessor';
 
 interface CurriculumUnit {
   unit: string;
@@ -108,9 +110,10 @@ const ENGLISH_CURRICULUM: CurriculumData = {
 interface CurriculumLearningProps {
   subject: 'math' | 'english';
   currentState: { S: number; L: number; K: number; M: number };
+  rppgState?: RPPGResult; // RPPG 상태 (선택적)
 }
 
-export default function CurriculumLearning({ subject, currentState }: CurriculumLearningProps) {
+export default function CurriculumLearning({ subject, currentState, rppgState }: CurriculumLearningProps) {
   // 사용자 프로필에서 학년 정보 로드
   const getUserGrade = (): '초6' | '중1' | '중2' | '중3' => {
     try {
@@ -134,6 +137,8 @@ export default function CurriculumLearning({ subject, currentState }: Curriculum
   const [currentProblem, setCurrentProblem] = useState<string | null>(null);
   const [currentExplanation, setCurrentExplanation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [learningSchedule, setLearningSchedule] = useState<ReturnType<typeof adjustLearningDifficulty> | null>(null);
+  const [optimalCheck, setOptimalCheck] = useState<ReturnType<typeof isOptimalForLearning> | null>(null);
 
   const curriculum = subject === 'math' ? DEFAULT_CURRICULUM : ENGLISH_CURRICULUM;
   const currentGradeUnits = curriculum[selectedGrade] || [];
@@ -149,6 +154,22 @@ export default function CurriculumLearning({ subject, currentState }: Curriculum
       }
     }
   }, [subject]);
+
+  // RPPG 상태 기반 학습 스케줄링 업데이트
+  useEffect(() => {
+    if (rppgState) {
+      // RPPGResult를 RPPGState로 변환
+      const rppgStateForScheduler = convertRPPGResultToState(rppgState);
+      
+      // 학습 최적 상태 확인
+      const optimal = isOptimalForLearning(rppgStateForScheduler);
+      setOptimalCheck(optimal);
+      
+      // 현재 난이도 가정 (medium)
+      const schedule = adjustLearningDifficulty(rppgStateForScheduler, 'medium', subject);
+      setLearningSchedule(schedule);
+    }
+  }, [rppgState, subject]);
 
   // 진행 상황 저장
   const saveProgress = (grade: string, unit: string, topicIndex: number) => {
@@ -269,6 +290,38 @@ export default function CurriculumLearning({ subject, currentState }: Curriculum
             <p className="text-sm text-gray-400">중학교 1-3학년 단계별 학습</p>
           </div>
         </div>
+
+        {/* RPPG 기반 학습 스케줄링 알림 */}
+        {learningSchedule && optimalCheck && (
+          <div className={`mb-4 rounded-2xl p-4 border-2 ${
+            optimalCheck.optimal 
+              ? 'bg-green-500/10 border-green-500/50' 
+              : 'bg-yellow-500/10 border-yellow-500/50'
+          }`}>
+            <div className="flex items-start gap-3">
+              <AlertCircle className={`w-5 h-5 mt-0.5 ${
+                optimalCheck.optimal ? 'text-green-400' : 'text-yellow-400'
+              }`} />
+              <div className="flex-1">
+                <div className="text-sm font-bold text-white mb-1">
+                  {optimalCheck.optimal ? '✅ 최적 학습 상태' : '⚠️ 학습 상태 주의'}
+                </div>
+                <div className="text-xs text-gray-300 mb-2">
+                  {optimalCheck.reason}
+                </div>
+                <div className="text-xs text-blue-300 mb-1">
+                  💡 권장 난이도: <span className="font-bold">{learningSchedule.difficulty === 'easy' ? '쉬움' : learningSchedule.difficulty === 'medium' ? '중간' : '어려움'}</span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {learningSchedule.reason}
+                </div>
+                <div className="text-xs text-purple-300 mt-2">
+                  📚 권장 활동: {learningSchedule.recommendedActivity}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 학년 선택 버튼 */}
         <div className="grid grid-cols-3 gap-2 mb-4">
