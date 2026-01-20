@@ -155,6 +155,137 @@ export async function connectToVPSGemma3(): Promise<{ connected: boolean; model?
 }
 
 /**
+ * VPS Gemma3에 질문하기 (스트리밍 모드)
+ */
+export async function* askGemma3Streaming(
+  prompt: string,
+  context?: string,
+  model?: string
+): AsyncGenerator<string, void, unknown> {
+  const fullPrompt = context
+    ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
+    : prompt;
+  
+  console.log('[Gemma3 Streaming] 요청 시작:', { prompt: prompt.substring(0, 50) + '...', url: GEMMA3_URL });
+  
+  const preferredModel = 'llama3.2:3b';
+  const fallbackModel = 'gemma3:4b';
+  let currentModel = model || preferredModel;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 타임아웃 60초
+    
+    const requestBody: Gemma3Request = {
+      model: currentModel,
+      prompt: fullPrompt,
+      stream: true, // 스트리밍 활성화
+      options: {
+        temperature: 0.7,
+        num_predict: 500
+      }
+    };
+
+    const response = await fetch(`${GEMMA3_URL}/api/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error(`[Gemma3 Streaming] HTTP 에러 ${response.status}:`, errorText);
+      
+      // 폴백 모델로 재시도
+      if (!model && errorText.includes('not found') && currentModel === preferredModel) {
+        console.log(`[Gemma3 Streaming] ${preferredModel} 모델 없음, ${fallbackModel}로 폴백 시도...`);
+        currentModel = fallbackModel;
+        
+        const fallbackResponse = await fetch(`${GEMMA3_URL}/api/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ...requestBody, model: fallbackModel }),
+          signal: controller.signal
+        });
+        
+        if (!fallbackResponse.ok) {
+          throw new Error(`HTTP ${fallbackResponse.status}: ${fallbackResponse.statusText}`);
+        }
+        
+        const reader = fallbackResponse.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (!reader) {
+          throw new Error('Response body가 없습니다');
+        }
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.response) {
+                  yield data.response;
+                }
+              } catch (e) {
+                // JSON 파싱 실패 무시
+              }
+            }
+          }
+        }
+        return;
+      }
+      
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    
+    if (!reader) {
+      throw new Error('Response body가 없습니다');
+    }
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.response) {
+              yield data.response;
+            }
+          } catch (e) {
+            // JSON 파싱 실패 무시
+          }
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('[Gemma3 Streaming] 에러:', error);
+    yield `죄송합니다. AI 서버에 연결할 수 없습니다. (에러: ${error.message || '알 수 없는 오류'})`;
+  }
+}
+
+/**
  * VPS Gemma3에 질문하기 (재시도 로직 포함)
  */
 export async function askGemma3(prompt: string, context?: string, model?: string): Promise<string> {
@@ -344,6 +475,103 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
       vocabulary: ["pursuit", "knowledge", "lifelong", "journey"]
     };
   }
+}
+
+/**
+ * 질문에 답변하기 (스트리밍 모드)
+ */
+export async function* answerQuestionStreaming(
+  question: string,
+  vectorState: Vector4D,
+  subject?: 'math' | 'english'
+): AsyncGenerator<string, void, unknown> {
+  console.log('[answerQuestion Streaming] 시작:', { question: question.substring(0, 50), subject, vectorState });
+  
+  // 대화 히스토리 로드
+  const history = loadConversationHistory();
+  
+  // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
+  let learningContext = '';
+  let constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D' | undefined = undefined;
+  let userProfileInfo = '';
+  
+  try {
+    // 사용자 프로필 정보 로드 (localStorage에서)
+    const profileData = localStorage.getItem('user-profile');
+    if (profileData) {
+      const profile = JSON.parse(profileData);
+      constitution = profile.constitution || undefined;
+      
+      // 사용자 프로필 정보를 컨텍스트에 포함
+      userProfileInfo = `
+사용자 프로필:
+- 생년월일시: ${profile.birthYear}년 ${profile.birthMonth}월 ${profile.birthDay}일 ${profile.birthHour}시 ${profile.birthMinute}분
+- 학습 스타일: ${constitution || '미진단'}
+- 건강정보: 키 ${profile.height}cm, 몸무게 ${profile.weight}kg, 혈액형 ${profile.bloodType}형
+${profile.chronicDiseases?.length > 0 ? `- 만성질환: ${profile.chronicDiseases.join(', ')}` : ''}
+${profile.medications?.length > 0 ? `- 복용약물: ${profile.medications.join(', ')}` : ''}`;
+    } else {
+      // 프로필이 없으면 학습 스타일 정보만 확인 (하위 호환성)
+      const evolutionData = localStorage.getItem('zodiac-evolution');
+      if (evolutionData) {
+        const parsed = JSON.parse(evolutionData);
+        // 12지지 동물을 학습 스타일로 매핑 (간단한 매핑)
+        const zodiacToConstitution: Record<string, 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D'> = {
+          'rat': 'Type-C', 'ox': 'Type-B', 'tiger': 'Type-A', 'rabbit': 'Type-D',
+          'dragon': 'Type-A', 'snake': 'Type-D', 'horse': 'Type-C', 'goat': 'Type-B',
+          'monkey': 'Type-C', 'rooster': 'Type-B', 'dog': 'Type-A', 'pig': 'Type-D'
+        };
+        constitution = zodiacToConstitution[parsed.zodiacId] || undefined;
+      }
+    }
+  } catch (e) {
+    console.warn('[학습 정보] 사용자 정보 로드 실패:', e);
+  }
+
+  try {
+    const { searchLearningContent } = await import('./learningContentApi');
+    const contents = await searchLearningContent(question, subject, constitution, vectorState);
+    if (contents.length > 0) {
+      learningContext = `\n\n관련 학습 자료:\n${contents.slice(0, 3).map(c => `- ${c.topic}: ${c.content.substring(0, 100)}...`).join('\n')}`;
+    }
+  } catch (error) {
+    console.warn('[학습 정보] 검색 실패, 학습 정보 없이 진행:', error);
+  }
+
+  // 전체 대화 히스토리를 프롬프트로 변환
+  const historyPrompt = history.length > 0
+    ? `\n\n이전 대화:\n${history.map(msg => `${msg.role === 'user' ? '사용자' : 'AI'}: ${msg.content}`).join('\n')}`
+    : '';
+
+  const context = `현재 학생의 4D 벡터 상태:
+- S(정서): ${(vectorState.S * 100).toFixed(0)}%
+- L(논리): ${(vectorState.L * 100).toFixed(0)}%
+- K(지식): ${(vectorState.K * 100).toFixed(0)}%
+- M(신체): ${(vectorState.M * 100).toFixed(0)}%${userProfileInfo}${learningContext}${historyPrompt}
+
+위 상태와 학습 자료를 고려하여 답변해주세요.`;
+
+  // 과목별 특화 모델 선택
+  const model = subject === 'math' ? 'mkm-math' : 
+                subject === 'english' ? 'mkm-english' : 
+                undefined;
+
+  // 스트리밍 답변 생성
+  let fullAnswer = '';
+  for await (const chunk of askGemma3Streaming(question, context, model)) {
+    fullAnswer += chunk;
+    yield chunk; // 실시간으로 청크 전송
+  }
+  
+  // 대화 히스토리에 추가
+  const updatedHistory = [
+    ...history,
+    { role: 'user', content: question },
+    { role: 'assistant', content: fullAnswer }
+  ];
+  
+  // 대화 히스토리 저장
+  saveConversationHistory(updatedHistory);
 }
 
 export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {

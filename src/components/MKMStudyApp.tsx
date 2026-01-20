@@ -12,7 +12,7 @@ import RPPGVideoFeed from './RPPGVideoFeed';
 import { Vector4D, ZodiacAnimal, CharacterTrait, CoinBalance } from '../utils/types';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
 import { loadCoinBalance, saveCoinBalance, earnCoins, spendCoins, calculateCoinsFromStudy } from '../utils/coinSystem';
-import { answerQuestion } from '../utils/api';
+import { answerQuestion, answerQuestionStreaming } from '../utils/api';
 
 type TabType = 'math' | 'english' | 'question' | 'dashboard';
 
@@ -33,6 +33,7 @@ export default function MKMStudyApp() {
   });
   const [isMicActive, setIsMicActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // AI 응답 생성 중
   const [postureWarning, setPostureWarning] = useState(false);
   const [drowsinessAlert, setDrowsinessAlert] = useState(false);
   const [question, setQuestion] = useState('');
@@ -100,9 +101,11 @@ export default function MKMStudyApp() {
       setIsListening(false);
       setIsMicActive(false);
       
-      // 음성 인식 완료 후 즉시 답변 요청
+      // 음성 인식 완료 후 즉시 답변 요청 (스트리밍 모드)
       if (transcript && transcript.trim()) {
         setAnswer('');
+        setIsProcessing(true); // 처리 중 상태 표시
+        
         try {
           console.log('[음성 인식] 질문:', transcript);
           // ref에서 최신 currentTab 값 사용 (클로저 문제 해결)
@@ -114,21 +117,26 @@ export default function MKMStudyApp() {
           // ref에서 최신 currentState 값 사용
           const latestState = currentStateRef.current;
           
-          console.log('[음성 인식] API 호출 시작:', { transcript: transcript.trim(), subject, latestState });
+          console.log('[음성 인식] 스트리밍 API 호출 시작:', { transcript: transcript.trim(), subject, latestState });
           
-          const response = await answerQuestion(transcript.trim(), latestState, subject);
+          // 스트리밍 응답 처리
+          let fullAnswer = '';
+          for await (const chunk of answerQuestionStreaming(transcript.trim(), latestState, subject)) {
+            fullAnswer += chunk;
+            setAnswer(fullAnswer); // 실시간으로 답변 업데이트
+          }
           
-          console.log('[Gemma3] 답변 수신:', response);
+          console.log('[Gemma3 Streaming] 답변 완료:', fullAnswer.substring(0, 100) + '...');
           
-          if (!response || response.trim().length === 0) {
-            console.error('[Gemma3] 빈 응답 수신');
+          if (!fullAnswer || fullAnswer.trim().length === 0) {
+            console.error('[Gemma3 Streaming] 빈 응답 수신');
             setAnswer('죄송합니다. 답변을 생성하지 못했습니다. VPS Gemma3 서버 연결을 확인해주세요.');
-          } else {
-            setAnswer(response);
           }
         } catch (error) {
           console.error('[답변 생성 실패]', error);
           setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.');
+        } finally {
+          setIsProcessing(false);
         }
       }
     };
@@ -363,21 +371,26 @@ export default function MKMStudyApp() {
                 {answer ? (
                   <div className="pt-4 border-t border-gray-700/50">
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <div className="text-xs text-green-400 font-medium">AI 답변</div>
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <div className="text-xs text-green-400 font-medium">
+                        {isProcessing ? 'AI 답변 생성 중...' : 'AI 답변'}
+                      </div>
                     </div>
                     <div className="text-gray-200 text-sm whitespace-pre-wrap leading-relaxed">
                       {answer}
+                      {isProcessing && (
+                        <span className="inline-block w-2 h-4 bg-blue-400 ml-1 animate-pulse" />
+                      )}
                     </div>
                   </div>
-                ) : (
+                ) : isProcessing ? (
                   <div className="pt-4 border-t border-gray-700/50">
                     <div className="flex items-center justify-center gap-3 text-blue-400 py-4">
                       <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                       <span className="text-sm font-medium">답변 생성 중...</span>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
