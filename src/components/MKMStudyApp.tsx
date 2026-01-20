@@ -54,27 +54,54 @@ export default function MKMStudyApp() {
       recognition.interimResults = false;
       recognition.lang = 'ko-KR';
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
         transcriptRef.current = transcript;
         setQuestion(transcript);
         setIsListening(false);
         setIsMicActive(false);
+        
+        // 음성 인식 완료 후 즉시 답변 요청
+        if (transcript && transcript.trim()) {
+          setAnswer('');
+          try {
+            console.log('[음성 인식] 질문:', transcript);
+            const response = await answerQuestion(transcript.trim(), currentState);
+            console.log('[Gemma3] 답변 수신:', response);
+            setAnswer(response);
+          } catch (error) {
+            console.error('[답변 생성 실패]', error);
+            setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.');
+          }
+        }
       };
 
       recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+        console.error('[음성 인식 에러]', event.error);
         setIsListening(false);
         setIsMicActive(false);
         if (event.error === 'no-speech') {
           setQuestion('');
+          setAnswer('');
           alert('음성이 감지되지 않았습니다. 다시 시도해주세요.');
+        } else if (event.error === 'not-allowed') {
+          setQuestion('');
+          setAnswer('');
+          alert('마이크 권한이 허용되지 않았습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+        } else {
+          setQuestion('');
+          setAnswer('');
+          console.error('[음성 인식 기타 에러]', event.error);
         }
       };
 
       recognition.onend = () => {
         setIsListening(false);
         setIsMicActive(false);
+        // 음성 인식이 끝났지만 결과가 없으면 (타임아웃 등)
+        if (!transcriptRef.current && isMicActive) {
+          console.log('[음성 인식] 결과 없음 (타임아웃 또는 음성 없음)');
+        }
       };
 
       recognitionRef.current = recognition;
@@ -340,61 +367,39 @@ export default function MKMStudyApp() {
                       }
                     }
                   }}
-                  onMouseUp={async () => {
+                  onMouseUp={() => {
                     if (recognitionRef.current && isListening) {
                       recognitionRef.current.stop();
                     }
                     setIsMicActive(false);
                     setIsListening(false);
-                    
-                    // 음성 인식이 완료되었고 질문이 있으면 답변 요청
-                    if (transcriptRef.current && transcriptRef.current.trim()) {
-                      const recognizedQuestion = transcriptRef.current.trim();
-                      setQuestion(recognizedQuestion);
-                      try {
-                        const response = await answerQuestion(recognizedQuestion, currentState);
-                        setAnswer(response);
-                      } catch (error) {
-                        console.error('Failed to get answer:', error);
-                        setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다.');
-                      }
-                      transcriptRef.current = '';
-                    }
+                    // 답변은 recognition.onresult에서 처리
                   }}
                   onTouchStart={() => {
                     if (recognitionRef.current && currentTab === 'question') {
+                      transcriptRef.current = ''; // 이전 결과 초기화
                       setIsMicActive(true);
                       setIsListening(true);
+                      setQuestion('');
                       setAnswer('');
                       try {
+                        console.log('[음성 인식] 시작');
                         recognitionRef.current.start();
                       } catch (err) {
-                        console.error('Failed to start recognition:', err);
+                        console.error('[음성 인식 시작 실패]', err);
                         setIsMicActive(false);
                         setIsListening(false);
+                        alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
                       }
                     }
                   }}
-                  onTouchEnd={async () => {
+                  onTouchEnd={() => {
                     if (recognitionRef.current && isListening) {
                       recognitionRef.current.stop();
                     }
                     setIsMicActive(false);
                     setIsListening(false);
-                    
-                    // 음성 인식이 완료되었고 질문이 있으면 답변 요청
-                    if (transcriptRef.current && transcriptRef.current.trim()) {
-                      const recognizedQuestion = transcriptRef.current.trim();
-                      setQuestion(recognizedQuestion);
-                      try {
-                        const response = await answerQuestion(recognizedQuestion, currentState);
-                        setAnswer(response);
-                      } catch (error) {
-                        console.error('Failed to get answer:', error);
-                        setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다.');
-                      }
-                      transcriptRef.current = '';
-                    }
+                    // 답변은 recognition.onresult에서 처리
                   }}
                   className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
                     isMicActive || isListening
