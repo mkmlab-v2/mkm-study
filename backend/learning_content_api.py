@@ -335,7 +335,25 @@ async def get_personalized_recommendation(request: PersonalizedRecommendationReq
     
     return {"recommendations": recommendations}
 
+@app.get("/")
+async def root():
+    """API 서버 상태 확인"""
+    return {
+        "status": "running",
+        "service": "MKM Study Learning Content API",
+        "version": "1.0.0",
+        "endpoints": {
+            "curriculum": "/api/v1/learning/curriculum",
+            "store": "/api/v1/learning/store",
+            "search": "/api/v1/learning/search",
+            "constitution": "/api/v1/learning/constitution/{constitution}",
+            "memory_techniques": "/api/v1/learning/memory-techniques"
+        }
+    }
+
 if __name__ == "__main__":
     import uvicorn
+    print(f"Starting FastAPI server at http://0.0.0.0:8003")
+    print(f"API Documentation: http://0.0.0.0:8003/docs")
     uvicorn.run(app, host="0.0.0.0", port=8003)
 
