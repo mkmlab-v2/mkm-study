@@ -7,6 +7,7 @@ import FourDVectorDashboard from './FourDVectorDashboard';
 import RewardShop from './RewardShop';
 import MathLearning from './MathLearning';
 import EnglishLearning from './EnglishLearning';
+import CurriculumLearning from './CurriculumLearning';
 import RPPGVideoFeed from './RPPGVideoFeed';
 import { Vector4D, ZodiacAnimal, CharacterTrait, CoinBalance } from '../utils/types';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
@@ -330,9 +331,13 @@ export default function MKMStudyApp() {
           </div>
         )}
 
-        {currentTab === 'math' && <MathLearning />}
+        {currentTab === 'math' && (
+          <CurriculumLearning subject="math" currentState={currentState} />
+        )}
 
-        {currentTab === 'english' && <EnglishLearning />}
+        {currentTab === 'english' && (
+          <CurriculumLearning subject="english" currentState={currentState} />
+        )}
 
         {currentTab === 'question' && (
           <div className="space-y-4">
