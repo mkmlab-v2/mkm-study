@@ -40,6 +40,8 @@ export default function MKMStudyApp() {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [rppgState, setRppgState] = useState<RPPGResult | undefined>(undefined);
+  const [confidenceAnalysis, setConfidenceAnalysis] = useState<ReturnType<typeof analyzeConfidence> | null>(null);
+  const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
   const currentTabRef = useRef<TabType>('dashboard');
@@ -98,10 +100,40 @@ export default function MKMStudyApp() {
 
     recognition.onresult = async (event: any) => {
       const transcript = event.results[0][0].transcript;
+      const endTime = Date.now();
+      const duration = speechStartTime ? (endTime - speechStartTime) / 1000 : 0; // 초 단위
+      
+      // 중간 결과 수집 (머뭇거림 감지용)
+      const interimResults: string[] = [];
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          interimResults.push(event.results[i][0].transcript);
+        }
+      }
+      
       transcriptRef.current = transcript;
       setQuestion(transcript);
       setIsListening(false);
       setIsMicActive(false);
+      setSpeechStartTime(null);
+      
+      // 음성 기반 메타인지 확신도 분석
+      if (transcript && transcript.trim()) {
+        const voiceIndicators = extractVoiceIndicatorsFromTranscript(transcript, duration, interimResults);
+        const analysis = analyzeConfidence(
+          voiceIndicators.jitter,
+          voiceIndicators.shimmer,
+          voiceIndicators.pitchVariability,
+          voiceIndicators.pauseCount,
+          voiceIndicators.speechRate
+        );
+        setConfidenceAnalysis(analysis);
+        
+        // 확신도가 낮으면 경고 표시
+        if (analysis.confidence < 0.5) {
+          console.log('[메타인지 분석] 확신도 낮음:', analysis);
+        }
+      }
       
       // 음성 인식 완료 후 즉시 답변 요청 (스트리밍 모드)
       if (transcript && transcript.trim()) {
@@ -373,6 +405,35 @@ export default function MKMStudyApp() {
                   </div>
                   <div className="text-white font-bold text-base leading-relaxed">{question}</div>
                 </div>
+                
+                {/* 메타인지 확신도 분석 결과 */}
+                {confidenceAnalysis && (
+                  <div className={`rounded-xl p-3 border-2 ${
+                    confidenceAnalysis.confidence >= 0.7 
+                      ? 'bg-green-500/10 border-green-500/50' 
+                      : confidenceAnalysis.confidence >= 0.5
+                      ? 'bg-yellow-500/10 border-yellow-500/50'
+                      : 'bg-red-500/10 border-red-500/50'
+                  }`}>
+                    <div className="text-xs font-medium text-white mb-1">
+                      🧠 메타인지 분석
+                    </div>
+                    <div className={`text-xs ${
+                      confidenceAnalysis.confidence >= 0.7 
+                        ? 'text-green-300' 
+                        : confidenceAnalysis.confidence >= 0.5
+                        ? 'text-yellow-300'
+                        : 'text-red-300'
+                    }`}>
+                      {confidenceAnalysis.recommendation}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      확신도: {(confidenceAnalysis.confidence * 100).toFixed(0)}% | 
+                      불확실성: {(confidenceAnalysis.uncertainty * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                )}
+                
                 {answer ? (
                   <div className="pt-4 border-t border-gray-700/50">
                     <div className="flex items-center gap-2 mb-3">
@@ -409,12 +470,15 @@ export default function MKMStudyApp() {
                     setIsListening(true);
                     setQuestion('');
                     setAnswer('');
+                    setConfidenceAnalysis(null);
+                    setSpeechStartTime(Date.now()); // 음성 인식 시작 시간 기록
                     try {
                       recognitionRef.current.start();
                     } catch (err) {
                       console.error('[음성 인식 시작 실패]', err);
                       setIsMicActive(false);
                       setIsListening(false);
+                      setSpeechStartTime(null);
                       alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
                     }
                   }
@@ -433,12 +497,15 @@ export default function MKMStudyApp() {
                     setIsListening(true);
                     setQuestion('');
                     setAnswer('');
+                    setConfidenceAnalysis(null);
+                    setSpeechStartTime(Date.now()); // 음성 인식 시작 시간 기록
                     try {
                       recognitionRef.current.start();
                     } catch (err) {
                       console.error('[음성 인식 시작 실패]', err);
                       setIsMicActive(false);
                       setIsListening(false);
+                      setSpeechStartTime(null);
                       alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
                     }
                   }
