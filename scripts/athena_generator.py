@@ -30,7 +30,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 # VPS Gemma3 (Fallback)
-GEMMA3_URL = os.getenv("VITE_VPS_GEMMA3_URL", "http://148.230.97.246:11434")
+GEMMA3_URL = os.getenv("VITE_VPS_GEMMA3_URL", os.getenv("VPS_GEMMA3_URL", "http://148.230.97.246:11434"))
 
 # 학습 정보 API
 LEARNING_API_BASE = "http://148.230.97.246:8003"
@@ -151,16 +151,22 @@ def generate_problem_with_gemini(
 """
     
     try:
+        # Gemini API 올바른 형식
         response = requests.post(
-            GEMINI_API_URL,
+            f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
             headers={
                 "Content-Type": "application/json",
             },
-            params={"key": GEMINI_API_KEY},
             json={
                 "contents": [{
                     "parts": [{"text": prompt}]
-                }]
+                }],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "topK": 40,
+                    "topP": 0.95,
+                    "maxOutputTokens": 1024,
+                }
             },
             timeout=30
         )
@@ -366,6 +372,8 @@ def generate_problems_for_curriculum(
 
 def main():
     """메인 함수"""
+    import sys
+    
     logger.info("=" * 60)
     logger.info("Athena Generator: 맞춤형 문제 생성기")
     logger.info("=" * 60)
@@ -379,11 +387,28 @@ def main():
     # 문제 생성 (예시: 중2 수학)
     logger.info("\n📚 맞춤형 문제 생성 시작...")
     
-    # 사용자 입력 또는 기본값
-    subject = input("과목을 선택하세요 (math/english, 기본값: math): ").strip() or "math"
-    grade = input("학년을 선택하세요 (중1/중2/중3/고1/고2, 기본값: 중2): ").strip() or "중2"
-    constitution = input("체질을 선택하세요 (태양인/태음인/소양인/소음인, 선택적): ").strip() or None
-    num_problems = int(input("단원당 생성할 문제 수 (기본값: 3): ").strip() or "3")
+    # 명령줄 인자 또는 기본값
+    if len(sys.argv) >= 2:
+        subject = sys.argv[1]
+    else:
+        subject = "math"
+    
+    if len(sys.argv) >= 3:
+        grade = sys.argv[2]
+    else:
+        grade = "중2"
+    
+    if len(sys.argv) >= 4:
+        constitution = sys.argv[3] if sys.argv[3] != "None" else None
+    else:
+        constitution = None
+    
+    if len(sys.argv) >= 5:
+        num_problems = int(sys.argv[4])
+    else:
+        num_problems = 3
+    
+    logger.info(f"설정: 과목={subject}, 학년={grade}, 체질={constitution}, 문제수={num_problems}")
     
     problems = generate_problems_for_curriculum(
         subject=subject,
