@@ -30,7 +30,14 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 # VPS Gemma3 (Fallback)
-GEMMA3_URL = os.getenv("VITE_VPS_GEMMA3_URL", os.getenv("VPS_GEMMA3_URL", "http://148.230.97.246:11434"))
+# 환경 변수 확인 (VITE_ 접두사는 프론트엔드용이므로 Python에서는 제거)
+# 포트 8000은 잘못된 값이므로 11434로 강제 설정
+_vps_url = os.getenv("VITE_VPS_GEMMA3_URL") or os.getenv("VPS_GEMMA3_URL")
+if _vps_url and ":8000" in _vps_url:
+    # 잘못된 포트가 설정된 경우 수정
+    _vps_url = _vps_url.replace(":8000", ":11434")
+GEMMA3_URL = _vps_url if _vps_url and ":11434" in _vps_url else "http://148.230.97.246:11434"
+logger.info(f"[Athena Generator] Gemma3 URL: {GEMMA3_URL}")
 
 # 학습 정보 API
 LEARNING_API_BASE = "http://148.230.97.246:8003"
@@ -121,9 +128,14 @@ def generate_problem_with_gemini(
     Returns:
         생성된 문제 정보
     """
-    if not GEMINI_API_KEY:
-        logger.warning("Gemini API 키가 없습니다. Gemma3로 대체합니다.")
-        return generate_problem_with_gemma3(curriculum_unit, exam_analysis, constitution, difficulty)
+    # Gemini API는 현재 400 오류 발생 중이므로 Gemma3 우선 사용
+    # if not GEMINI_API_KEY:
+    #     logger.warning("Gemini API 키가 없습니다. Gemma3로 대체합니다.")
+    #     return generate_problem_with_gemma3(curriculum_unit, exam_analysis, constitution, difficulty)
+    
+    # 임시로 Gemma3만 사용 (Gemini API 문제 해결 후 재활성화)
+    logger.info("Gemini API 우회, Gemma3 사용")
+    return generate_problem_with_gemma3(curriculum_unit, exam_analysis, constitution, difficulty)
     
     # 프롬프트 구성
     unit_name = curriculum_unit.get("unit", "")
@@ -168,7 +180,7 @@ def generate_problem_with_gemini(
                     "maxOutputTokens": 1024,
                 }
             },
-            timeout=30
+            timeout=60  # 타임아웃 60초로 증가
         )
         
         if response.status_code == 200:
@@ -211,23 +223,29 @@ def generate_problem_with_gemma3(
     unit_name = curriculum_unit.get("unit", "")
     topics = curriculum_unit.get("topics", [])
     
-    prompt = f"""다음 단원에 대한 {difficulty} 난이도의 학습 문제를 생성해주세요.
+    # 프롬프트 단순화 (타임아웃 방지)
+    prompt = f"""중2 수학 '{unit_name}' 단원의 {difficulty} 난이도 문제를 만들어주세요.
 
-단원: {unit_name}
-주제: {', '.join(topics)}
+주제: {', '.join(topics[:3])}  # 최대 3개 주제만
 
-문제 형식:
-- 문제 설명
-- 핵심 개념
-- 힌트
-- 정답 및 풀이 과정
-"""
+형식:
+1. 문제
+2. 정답
+3. 풀이
+
+간단하고 명확하게 작성해주세요."""
     
     try:
+        # Gemma3 URL 확인
+        logger.info(f"[Gemma3] 연결 시도: {GEMMA3_URL}/api/generate")
+        
         response = requests.post(
             f"{GEMMA3_URL}/api/generate",
+            headers={
+                "Content-Type": "application/json",
+            },
             json={
-                "model": "llama3.2:3b",
+                "model": "gemma3:4b",  # VPS에 설치된 모델 사용
                 "prompt": prompt,
                 "stream": False,
                 "options": {
@@ -235,7 +253,7 @@ def generate_problem_with_gemma3(
                     "num_predict": 500
                 }
             },
-            timeout=30
+            timeout=60  # 타임아웃 60초로 증가
         )
         
         if response.status_code == 200:
