@@ -243,7 +243,7 @@ export function recommendStudyMode(vectorState: {
 }, constitution: string): StudyModeConfig {
   const { S, L, K, M } = vectorState;
 
-  if (S > 0.7 && M > 0.6 && constitution.includes('소양인')) {
+  if (S > 0.7 && M > 0.6 && constitution.includes('Type-C')) {
     return {
       mode: 'speed_quiz',
       duration: 10,
@@ -265,7 +265,7 @@ export function recommendStudyMode(vectorState: {
     };
   }
 
-  if (M > 0.7 && constitution.includes('태음인')) {
+  if (M > 0.7 && constitution.includes('Type-B')) {
     return {
       mode: 'deep_dive',
       duration: 30,
@@ -307,13 +307,13 @@ export const STUDY_MODE_DESCRIPTIONS: Record<string, {
     title: '스피드 퀴즈',
     icon: '⚡',
     description: '10분 안에 10문제 타격! 순발력과 직관을 키웁니다.',
-    target: '소양인 기질 · 지루함 방지 · 반사신경 훈련'
+    target: 'Type-C 스타일 · 지루함 방지 · 반사신경 훈련'
   },
   deep_dive: {
     title: '딥 다이브',
     icon: '🏊',
     description: '한 문제를 30분 동안 깊이 탐구합니다.',
-    target: '태음인 기질 · 지구력 훈련 · 킬러 문항 대비'
+    target: 'Type-B 스타일 · 지구력 훈련 · 킬러 문항 대비'
   },
   concept_review: {
     title: '개념 백지 복습',

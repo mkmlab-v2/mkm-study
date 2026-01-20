@@ -7,15 +7,13 @@ interface FourDVectorDashboardProps {
   healthScore?: number;
   dcv?: number;
   riskLevel?: number;
-  expectedTime?: number;
 }
 
 export default function FourDVectorDashboard({
   currentState,
   healthScore = 85,
   dcv = 94.4,
-  riskLevel = 30,
-  expectedTime = 1440
+  riskLevel = 30
 }: FourDVectorDashboardProps) {
   const [animatedState, setAnimatedState] = useState(currentState);
 
@@ -54,7 +52,7 @@ export default function FourDVectorDashboard({
     <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
       <div className="flex items-center gap-2 mb-6">
         <Sparkles className="w-5 h-5 text-yellow-500" />
-        <h3 className="text-lg font-bold text-white">MKM12 Brain Engine</h3>
+        <h3 className="text-lg font-bold text-white">Learning State Monitor</h3>
       </div>
 
       <div className="flex items-start gap-6">
@@ -145,7 +143,7 @@ export default function FourDVectorDashboard({
             <div className="backdrop-blur-sm bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="w-3 h-3 text-blue-400" />
-                <div className="text-gray-400 text-xs">혈압성 (DCV)</div>
+                <div className="text-gray-400 text-xs">System Consistency</div>
               </div>
               <div className="text-2xl font-bold text-blue-400">{dcv.toFixed(1)}<span className="text-sm">%</span></div>
             </div>
@@ -153,17 +151,9 @@ export default function FourDVectorDashboard({
             <div className="backdrop-blur-sm bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
               <div className="flex items-center gap-2 mb-1">
                 <Activity className="w-3 h-3 text-yellow-400" />
-                <div className="text-gray-400 text-xs">봉합 위험도</div>
+                <div className="text-gray-400 text-xs">Stability Index</div>
               </div>
               <div className="text-2xl font-bold text-green-400">{riskLevel}<span className="text-sm">%</span></div>
-            </div>
-
-            <div className="backdrop-blur-sm bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
-              <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-3 h-3 text-purple-400" />
-                <div className="text-gray-400 text-xs">예상 유지 시간</div>
-              </div>
-              <div className="text-2xl font-bold text-purple-400">{expectedTime}<span className="text-sm">분</span></div>
             </div>
           </div>
 

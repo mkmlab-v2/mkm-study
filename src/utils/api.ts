@@ -310,14 +310,14 @@ export async function generateMathProblem(level: string, topic: string): Promise
 
 난이도는 중간 수준으로 해주세요.`;
 
-  return await askGemma3(prompt, 'MKM12 이론에 근거하여 학생의 4차원 균형을 고려한 문제를 제시하세요.');
+  return await askGemma3(prompt, '학생의 4차원 상태 벡터를 고려하여 개인 맞춤형 문제를 제시하세요.');
 }
 
 export async function explainMathConcept(concept: string, studentLevel: string): Promise<string> {
   const prompt = `${studentLevel} 학생이 이해할 수 있도록 "${concept}"의 개념을 설명해주세요.
 개념의 계보(이 개념이 어디서 발전했는지)도 함께 설명해주세요.`;
 
-  return await askGemma3(prompt, 'MKM12 이론에 근거하여 단계적으로 설명하세요.');
+  return await askGemma3(prompt, '학생 수준에 맞춰 단계적으로 설명하세요.');
 }
 
 export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'hard'): Promise<{
@@ -354,7 +354,7 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
   
   // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
   let learningContext = '';
-  let constitution: '태양인' | '태음인' | '소양인' | '소음인' | undefined = undefined;
+  let constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D' | undefined = undefined;
   let userProfileInfo = '';
   
   try {
@@ -368,20 +368,20 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
       userProfileInfo = `
 사용자 프로필:
 - 생년월일시: ${profile.birthYear}년 ${profile.birthMonth}월 ${profile.birthDay}일 ${profile.birthHour}시 ${profile.birthMinute}분
-- 체질: ${constitution || '미진단'}
+- 학습 스타일: ${constitution || '미진단'}
 - 건강정보: 키 ${profile.height}cm, 몸무게 ${profile.weight}kg, 혈액형 ${profile.bloodType}형
 ${profile.chronicDiseases?.length > 0 ? `- 만성질환: ${profile.chronicDiseases.join(', ')}` : ''}
 ${profile.medications?.length > 0 ? `- 복용약물: ${profile.medications.join(', ')}` : ''}`;
     } else {
-      // 프로필이 없으면 체질 정보만 확인 (하위 호환성)
+      // 프로필이 없으면 학습 스타일 정보만 확인 (하위 호환성)
       const evolutionData = localStorage.getItem('zodiac-evolution');
       if (evolutionData) {
         const parsed = JSON.parse(evolutionData);
-        // 12지지 동물을 체질로 매핑 (간단한 매핑)
-        const zodiacToConstitution: Record<string, '태양인' | '태음인' | '소양인' | '소음인'> = {
-          'rat': '소양인', 'ox': '태음인', 'tiger': '태양인', 'rabbit': '소음인',
-          'dragon': '태양인', 'snake': '소음인', 'horse': '소양인', 'goat': '태음인',
-          'monkey': '소양인', 'rooster': '태음인', 'dog': '태양인', 'pig': '소음인'
+        // 12지지 동물을 학습 스타일로 매핑 (간단한 매핑)
+        const zodiacToConstitution: Record<string, 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D'> = {
+          'rat': 'Type-C', 'ox': 'Type-B', 'tiger': 'Type-A', 'rabbit': 'Type-D',
+          'dragon': 'Type-A', 'snake': 'Type-D', 'horse': 'Type-C', 'goat': 'Type-B',
+          'monkey': 'Type-C', 'rooster': 'Type-B', 'dog': 'Type-A', 'pig': 'Type-D'
         };
         constitution = zodiacToConstitution[parsed.zodiacId] || undefined;
       }

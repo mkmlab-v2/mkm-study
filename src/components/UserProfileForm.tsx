@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { User, Calendar, Heart, Stethoscope } from 'lucide-react';
 
 export interface UserProfile {
-  // 생년월일시 (사주)
+  // 생년월일시 (학습 리듬 분석용)
   birthYear: number;
   birthMonth: number;
   birthDay: number;
@@ -19,10 +19,10 @@ export interface UserProfile {
   chronicDiseases: string[];
   medications: string[];
   
-  // 체질설문 (사상체질)
-  constitution: '태양인' | '태음인' | '소양인' | '소음인' | null;
+  // 학습 스타일 프로필 (A-Code 기반)
+  constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D' | null;
   constitutionAnswers: {
-    // 체질 진단 질문 (간단한 버전)
+    // 학습 스타일 진단 질문
     q1: number; // 체형 (1: 마른 편, 2: 보통, 3: 통통한 편)
     q2: number; // 체온 (1: 더위 잘 탐, 2: 보통, 3: 추위 잘 탐)
     q3: number; // 소화 (1: 소화 잘됨, 2: 보통, 3: 소화 안됨)
@@ -83,7 +83,7 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
     if (step < 3) {
       setStep((step + 1) as 1 | 2 | 3);
     } else {
-      // 체질 자동 진단
+      // 학습 스타일 자동 진단
       const constitution = diagnoseConstitution(profile.constitutionAnswers!);
       
       // 학년 자동 계산
@@ -108,39 +108,39 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
     }
   };
 
-  const diagnoseConstitution = (answers: UserProfile['constitutionAnswers']): '태양인' | '태음인' | '소양인' | '소음인' => {
-    // 간단한 체질 진단 로직
+  const diagnoseConstitution = (answers: UserProfile['constitutionAnswers']): 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D' => {
+    // A-Code 기반 학습 스타일 진단 로직
     const score = {
-      태양인: 0,
-      태음인: 0,
-      소양인: 0,
-      소음인: 0,
+      'Type-A': 0,
+      'Type-B': 0,
+      'Type-C': 0,
+      'Type-D': 0,
     };
 
     // Q1: 체형
-    if (answers.q1 === 1) score.소양인 += 2;
-    else if (answers.q1 === 3) score.태음인 += 2;
+    if (answers.q1 === 1) score['Type-C'] += 2;
+    else if (answers.q1 === 3) score['Type-B'] += 2;
 
     // Q2: 체온
-    if (answers.q2 === 1) score.태양인 += 2;
-    else if (answers.q2 === 3) score.소음인 += 2;
+    if (answers.q2 === 1) score['Type-A'] += 2;
+    else if (answers.q2 === 3) score['Type-D'] += 2;
 
     // Q3: 소화
-    if (answers.q3 === 1) score.태양인 += 1;
-    else if (answers.q3 === 3) score.태음인 += 1;
+    if (answers.q3 === 1) score['Type-A'] += 1;
+    else if (answers.q3 === 3) score['Type-B'] += 1;
 
     // Q4: 성격
-    if (answers.q4 === 1) score.소양인 += 2;
-    else if (answers.q4 === 3) score.소음인 += 2;
+    if (answers.q4 === 1) score['Type-C'] += 2;
+    else if (answers.q4 === 3) score['Type-D'] += 2;
 
     // Q5: 수면
-    if (answers.q5 === 1) score.태양인 += 1;
-    else if (answers.q5 === 3) score.소음인 += 1;
+    if (answers.q5 === 1) score['Type-A'] += 1;
+    else if (answers.q5 === 3) score['Type-D'] += 1;
 
-    // 가장 높은 점수의 체질 반환
+    // 가장 높은 점수의 타입 반환
     const maxScore = Math.max(...Object.values(score));
     const result = Object.entries(score).find(([_, s]) => s === maxScore)?.[0];
-    return (result || '소양인') as '태양인' | '태음인' | '소양인' | '소음인';
+    return (result || 'Type-C') as 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D';
   };
 
   return (
@@ -168,7 +168,7 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
               <h2 className="text-xl font-bold">생년월일시 입력</h2>
             </div>
             <p className="text-sm text-gray-400 mb-6">
-              사주 분석을 위한 생년월일시를 입력해주세요.
+              학습 리듬 및 집중력 주기 분석을 위한 생년월일시를 입력해주세요.
             </p>
 
             <div className="space-y-4">
@@ -339,15 +339,15 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
           </div>
         )}
 
-        {/* Step 3: 체질설문 */}
+        {/* Step 3: 학습 스타일 프로필 */}
         {step === 3 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
               <Stethoscope className="w-5 h-5 text-green-400" />
-              <h2 className="text-xl font-bold">체질설문</h2>
+              <h2 className="text-xl font-bold">학습 스타일 프로필</h2>
             </div>
             <p className="text-sm text-gray-400 mb-6">
-              사상체질 진단을 위한 간단한 설문입니다.
+              개인 맞춤형 학습 경로 설계를 위한 간단한 설문입니다.
             </p>
 
             <div className="space-y-6">

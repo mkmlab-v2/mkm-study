@@ -27,7 +27,7 @@ export default function MathLearning() {
     M: 0.65
   };
 
-  const recommendedMode = recommendStudyMode(currentVector, '소양인');
+  const recommendedMode = recommendStudyMode(currentVector, 'Type-C');
 
   const loadProblem = () => {
     setShowHint(false);

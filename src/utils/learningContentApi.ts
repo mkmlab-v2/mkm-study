@@ -1,7 +1,7 @@
 /**
  * VPS 기반 학습 정보 시스템 API 클라이언트
  * 
- * 체질별 학습 스타일, 최신 두뇌 과학, 암기 기법, 기억법 통합
+ * 학습 스타일별 맞춤형 콘텐츠, 최신 두뇌 과학, 암기 기법, 기억법 통합
  */
 
 import type { Vector4D } from './types';
@@ -15,7 +15,7 @@ export interface LearningContent {
   topic: string;
   content: string;
   difficulty: 'easy' | 'medium' | 'hard';
-  constitution?: '태양인' | '태음인' | '소양인' | '소음인';
+  constitution?: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D';
   memoryTechnique?: string; // 'spaced_repetition', 'chunking', 'mnemonic' 등
   brainScience?: string; // 최신 두뇌 과학 기법
   ebsCurriculum?: string; // EBS 교과과정 연계
@@ -24,7 +24,7 @@ export interface LearningContent {
 }
 
 export interface ConstitutionLearningStyle {
-  constitution: '태양인' | '태음인' | '소양인' | '소음인';
+  constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D';
   preferredMethod: string;
   studyTime: string;
   focusPattern: string;
@@ -41,10 +41,10 @@ export interface MemoryTechnique {
 }
 
 /**
- * 체질별 학습 스타일 조회
+ * 학습 스타일별 맞춤형 학습 방법 조회
  */
 export async function getConstitutionLearningStyle(
-  constitution: '태양인' | '태음인' | '소양인' | '소음인'
+  constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D'
 ): Promise<ConstitutionLearningStyle | null> {
   try {
     const response = await fetch(`${API_BASE}/api/v1/learning/constitution/${constitution}`, {
@@ -65,12 +65,12 @@ export async function getConstitutionLearningStyle(
 }
 
 /**
- * 학습 콘텐츠 검색 (체질별 맞춤)
+ * 학습 콘텐츠 검색 (학습 스타일별 맞춤)
  */
 export async function searchLearningContent(
   query: string,
   subject?: 'math' | 'english',
-  constitution?: '태양인' | '태음인' | '소양인' | '소음인',
+  constitution?: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D',
   vectorState?: Vector4D
 ): Promise<LearningContent[]> {
   try {
@@ -163,10 +163,10 @@ export async function getEBSContent(
 }
 
 /**
- * 체질별 맞춤 학습 추천
+ * 학습 스타일별 맞춤형 학습 추천
  */
 export async function getPersonalizedRecommendation(
-  constitution: '태양인' | '태음인' | '소양인' | '소음인',
+  constitution: 'Type-A' | 'Type-B' | 'Type-C' | 'Type-D',
   vectorState: Vector4D,
   subject: 'math' | 'english'
 ): Promise<LearningContent[]> {
