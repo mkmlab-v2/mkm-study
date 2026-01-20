@@ -14,6 +14,7 @@ import type { RPPGResult } from '../utils/rppgProcessor';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
 import { loadCoinBalance, saveCoinBalance, earnCoins, spendCoins, calculateCoinsFromStudy } from '../utils/coinSystem';
 import { answerQuestion, answerQuestionStreaming } from '../utils/api';
+import { getTutorPersona, type BioCognitiveType } from '../utils/personaMatcher';
 
 type TabType = 'math' | 'english' | 'question' | 'dashboard';
 
@@ -42,6 +43,7 @@ export default function MKMStudyApp() {
   const [rppgState, setRppgState] = useState<RPPGResult | undefined>(undefined);
   const [confidenceAnalysis, setConfidenceAnalysis] = useState<ReturnType<typeof analyzeConfidence> | null>(null);
   const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
+  const [tutorPersona, setTutorPersona] = useState<ReturnType<typeof getTutorPersona> | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
   const currentTabRef = useRef<TabType>('dashboard');
@@ -60,6 +62,10 @@ export default function MKMStudyApp() {
         const profile = JSON.parse(savedProfile) as UserProfile;
         setUserProfile(profile);
         setHasProfile(true);
+        
+        // 페르소나 설정
+        const persona = getTutorPersona(profile.constitution as BioCognitiveType | undefined);
+        setTutorPersona(persona);
       } catch (e) {
         console.error('[프로필 로드 실패]', e);
       }
@@ -394,6 +400,11 @@ export default function MKMStudyApp() {
               <div className="bg-gray-800/50 rounded-xl p-3 text-xs text-gray-300">
                 💡 Tip: VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.
               </div>
+              {tutorPersona && (
+                <div className="mt-3 bg-blue-500/10 rounded-xl p-3 text-xs text-blue-300 border border-blue-500/30">
+                  🎭 튜터 페르소나: <span className="font-bold">{tutorPersona.name}</span> - {tutorPersona.personality}
+                </div>
+              )}
             </div>
 
             {question && (
