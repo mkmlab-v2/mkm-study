@@ -66,7 +66,11 @@ export default function MKMStudyApp() {
           setAnswer('');
           try {
             console.log('[음성 인식] 질문:', transcript);
-            const response = await answerQuestion(transcript.trim(), currentState);
+            // 현재 탭에 따라 과목별 특화 모델 사용
+            const subject = currentTab === 'math' ? 'math' : 
+                            currentTab === 'english' ? 'english' : 
+                            undefined;
+            const response = await answerQuestion(transcript.trim(), currentState, subject);
             console.log('[Gemma3] 답변 수신:', response);
             setAnswer(response);
           } catch (error) {
