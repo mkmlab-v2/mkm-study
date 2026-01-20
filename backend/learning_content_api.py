@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
 import os
+import hashlib
 from pathlib import Path
 from datetime import datetime
 import logging
@@ -172,32 +173,96 @@ async def get_constitution_learning_style(constitution: str):
     
     return CONSTITUTION_LEARNING_STYLES[constitution]
 
+# 학습 콘텐츠 저장소 (실제로는 File-Based Memory System 사용)
+LEARNING_CONTENT_STORAGE = Path("/var/www/mkm-study/learning-content")
+LEARNING_CONTENT_STORAGE.mkdir(parents=True, exist_ok=True)
+
+class LearningContentStore:
+    """학습 콘텐츠 저장소 (File-Based)"""
+    
+    def __init__(self):
+        self.storage_dir = LEARNING_CONTENT_STORAGE
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+    
+    def store(self, content_data: Dict[str, Any]) -> str:
+        """학습 콘텐츠 저장"""
+        content_id = hashlib.md5(
+            f"{content_data.get('topic', '')}_{content_data.get('subject', '')}_{datetime.now().isoformat()}".encode()
+        ).hexdigest()
+        
+        content_data["id"] = content_id
+        content_data["createdAt"] = datetime.now().isoformat()
+        content_data["updatedAt"] = datetime.now().isoformat()
+        
+        # JSON 파일로 저장
+        file_path = self.storage_dir / f"{content_id}.json"
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(content_data, f, ensure_ascii=False, indent=2)
+        
+        return content_id
+    
+    def search(self, query: str, subject: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """학습 콘텐츠 검색 (간단한 텍스트 매칭)"""
+        results = []
+        
+        # 모든 JSON 파일 검색
+        for json_file in self.storage_dir.glob("*.json"):
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    content = json.load(f)
+                
+                # 간단한 텍스트 매칭 (실제로는 벡터 검색 사용)
+                if query.lower() in content.get('topic', '').lower() or \
+                   query.lower() in content.get('content', '').lower():
+                    
+                    if subject and content.get('subject') != subject:
+                        continue
+                    
+                    results.append(content)
+            except Exception as e:
+                logger.warning(f"파일 읽기 실패 ({json_file}): {e}")
+                continue
+        
+        # 관련도 순으로 정렬 (간단한 점수 계산)
+        results.sort(key=lambda x: (
+            query.lower() in x.get('topic', '').lower(),
+            len(x.get('content', ''))
+        ), reverse=True)
+        
+        return results[:limit]
+
+# 전역 저장소 인스턴스
+_content_store = LearningContentStore()
+
+@app.post("/api/v1/learning/store")
+async def store_learning_content(content_data: Dict[str, Any]):
+    """학습 콘텐츠 저장"""
+    try:
+        content_id = _content_store.store(content_data)
+        logger.info(f"학습 콘텐츠 저장 완료: {content_id}")
+        return {"success": True, "content_id": content_id}
+    except Exception as e:
+        logger.error(f"학습 콘텐츠 저장 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/v1/learning/search")
 async def search_learning_content(request: LearningSearchRequest):
     """학습 콘텐츠 검색 (체질별 맞춤)"""
-    # TODO: 실제 벡터 검색 구현 (File-Based Memory System 사용)
-    # 현재는 더미 데이터 반환
-    
     logger.info(f"학습 콘텐츠 검색: query={request.query}, subject={request.subject}, constitution={request.constitution}")
     
-    # 더미 데이터 (실제로는 VPS File-Based Memory System에서 검색)
-    results = [
-        {
-            "id": "math_001",
-            "subject": "math",
-            "topic": "이차함수",
-            "content": "이차함수는 y = ax² + bx + c 형태의 함수입니다...",
-            "difficulty": "medium",
-            "constitution": request.constitution,
-            "memoryTechnique": "spaced_repetition",
-            "brainScience": "active_recall",
-            "ebsCurriculum": "고등학교 수학 I",
-            "createdAt": datetime.now().isoformat(),
-            "updatedAt": datetime.now().isoformat()
-        }
-    ]
+    # File-Based Memory System에서 검색
+    results = _content_store.search(
+        query=request.query,
+        subject=request.subject,
+        limit=request.limit
+    )
     
-    return {"results": results[:request.limit]}
+    # 체질별 필터링 (있는 경우)
+    if request.constitution:
+        # 체질별 맞춤 로직 (향후 구현)
+        pass
+    
+    return {"results": results}
 
 @app.get("/api/v1/learning/memory-techniques")
 async def get_memory_techniques(subject: Optional[str] = None):
