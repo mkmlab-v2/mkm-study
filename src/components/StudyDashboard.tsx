@@ -1,0 +1,225 @@
+import { useState, useEffect } from 'react';
+import { Heart, Activity, Camera, Shield } from 'lucide-react';
+import RPPGVideoFeed from './RPPGVideoFeed';
+import DigitalTimerWidget from './DigitalTimerWidget';
+import FourDVectorDashboard from './FourDVectorDashboard';
+import AudioCapture, { AudioMetrics } from './AudioCapture';
+import SpeechRecognition, { SpeechAnalysis } from './SpeechRecognition';
+import type { Vector4D } from '../utils/types';
+import { biometricMapper, BiometricData } from '../utils/biometricMapper';
+import { RPPGResult } from '../utils/rppgProcessor';
+
+export default function StudyDashboard() {
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [currentState, setCurrentState] = useState<Vector4D>({
+    S: 0.25,
+    L: 0.25,
+    K: 0.25,
+    M: 0.25
+  });
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [biometricData, setBiometricData] = useState<BiometricData>({});
+  const [healthScore, setHealthScore] = useState(85);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isSessionActive) return;
+
+    const interval = setInterval(() => {
+      const newVector = biometricMapper.mapToVector4D(biometricData);
+      setCurrentState(newVector);
+
+      const assessment = biometricMapper.assessOverallHealth(newVector);
+      setHealthScore(Math.round(assessment.score));
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isSessionActive, biometricData]);
+
+  const handleStartSession = () => {
+    setIsSessionActive(true);
+    setSessionStartTime(Date.now());
+    setCameraError(null);
+  };
+
+  const handleStopSession = () => {
+    setIsSessionActive(false);
+    setSessionStartTime(null);
+    setCurrentState({ S: 0.25, L: 0.25, K: 0.25, M: 0.25 });
+  };
+
+  const handleCameraError = (error: string) => {
+    setCameraError(error);
+  };
+
+  const handleHeartRate = (result: RPPGResult) => {
+    setBiometricData(prev => ({
+      ...prev,
+      heartRate: result.heartRate
+    }));
+  };
+
+  const handleAudioData = (metrics: AudioMetrics) => {
+    setBiometricData(prev => ({
+      ...prev,
+      audioMetrics: metrics
+    }));
+  };
+
+  const handleSpeechAnalysis = (analysis: SpeechAnalysis) => {
+    setBiometricData(prev => ({
+      ...prev,
+      speechAnalysis: analysis
+    }));
+  };
+
+  const getMotivationalQuote = () => {
+    const quotes = [
+      "Focus on progress, not perfection.",
+      "Every expert was once a beginner.",
+      "Your mind is a powerful tool.",
+      "Stay committed to your goals.",
+      "Knowledge is power.",
+      "Success is the sum of small efforts."
+    ];
+    return quotes[Math.floor(currentTime.getTime() / 60000) % quotes.length];
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-white pb-24">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        <FourDVectorDashboard currentState={currentState} healthScore={healthScore} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <Camera className="w-5 h-5 text-blue-400" />
+              <h3 className="text-lg font-bold text-white">rPPG 모니터</h3>
+            </div>
+
+            {!isSessionActive ? (
+              <div className="aspect-video bg-gray-800/50 rounded-2xl flex items-center justify-center border border-gray-700/50">
+                <div className="text-center">
+                  <Camera className="w-16 h-16 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">카메라 비활성화</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <RPPGVideoFeed
+                  onStreamReady={(stream) => console.log('Camera ready:', stream)}
+                  onError={handleCameraError}
+                  onHeartRate={handleHeartRate}
+                />
+                {cameraError && (
+                  <div className="mt-4 p-3 bg-red-900/30 border border-red-700/50 rounded-xl">
+                    <p className="text-red-400 text-xs">{cameraError}</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="mt-4 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <Heart className="w-4 h-4 text-red-400" />
+                <span className="text-gray-400">심박수</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-400" />
+                <span className="text-gray-400">각성도</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
+            <DigitalTimerWidget
+              isActive={isSessionActive}
+              startTime={sessionStartTime}
+              onStart={handleStartSession}
+              onStop={handleStopSession}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AudioCapture
+            isActive={isSessionActive}
+            onAudioData={handleAudioData}
+            onError={(error) => console.error('Audio error:', error)}
+          />
+
+          <SpeechRecognition
+            isActive={isSessionActive}
+            onTranscript={(text, isFinal) => {
+              if (isFinal) {
+                console.log('Final transcript:', text);
+              }
+            }}
+            onAnalysis={handleSpeechAnalysis}
+          />
+        </div>
+
+        <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield className="w-5 h-5 text-green-400" />
+            <h3 className="text-lg font-bold text-white">Zero-Trust 보안</h3>
+          </div>
+          <div className="text-center py-8">
+            <Shield className="w-12 h-12 text-green-400 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm mb-1">모든 영상/음성 데이터는</p>
+            <p className="text-gray-400 text-sm">브라우저 내에서만 처리됩니다</p>
+          </div>
+        </div>
+      </div>
+
+      <nav className="fixed bottom-0 left-0 right-0 backdrop-blur-xl bg-gray-900/80 border-t border-gray-800/50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-around py-3">
+            <button className="flex flex-col items-center gap-1 px-6 py-2 text-blue-400 transition-colors">
+              <Activity className="w-5 h-5" />
+              <span className="text-xs font-medium">모니터</span>
+            </button>
+            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+              <Heart className="w-5 h-5" />
+              <span className="text-xs font-medium">건강</span>
+            </button>
+            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+              <Camera className="w-5 h-5" />
+              <span className="text-xs font-medium">카메라</span>
+            </button>
+            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+              <Shield className="w-5 h-5" />
+              <span className="text-xs font-medium">보안</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  );
+}
