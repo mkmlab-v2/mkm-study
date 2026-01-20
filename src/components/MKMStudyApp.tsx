@@ -340,11 +340,11 @@ export default function MKMStudyApp() {
         )}
 
         {currentTab === 'question' && (
-          <div className="space-y-4">
+          <div className="space-y-4 pb-24">
             <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-5 border border-purple-500/30">
-              <h2 className="text-xl font-bold mb-2 text-white">질문 답변</h2>
+              <h2 className="text-xl font-bold mb-2 text-white">AI 질문 답변</h2>
               <p className="text-xs text-gray-400 mb-3">
-                아래 마이크 버튼을 길게 눌러 질문하세요!
+                마이크 버튼을 길게 눌러 질문하세요!
               </p>
               <div className="bg-gray-800/50 rounded-xl p-3 text-xs text-gray-300">
                 💡 Tip: VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.
@@ -352,39 +352,121 @@ export default function MKMStudyApp() {
             </div>
 
             {question && (
-              <div className="bg-gray-900/40 rounded-2xl p-5 border border-gray-800/50">
-                <div className="mb-4">
-                  <div className="text-xs text-gray-400 mb-2">질문:</div>
-                  <div className="text-white font-bold text-sm">{question}</div>
+              <div className="bg-gray-900/40 rounded-2xl p-5 border border-gray-800/50 space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <div className="text-xs text-gray-400 font-medium">질문</div>
+                  </div>
+                  <div className="text-white font-bold text-base leading-relaxed">{question}</div>
                 </div>
                 {answer ? (
-                  <div>
-                    <div className="text-xs text-blue-400 mb-2">답변:</div>
-                    <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
+                  <div className="pt-4 border-t border-gray-700/50">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                      <div className="text-xs text-green-400 font-medium">AI 답변</div>
+                    </div>
+                    <div className="text-gray-200 text-sm whitespace-pre-wrap leading-relaxed">
                       {answer}
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-blue-400">
-                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs">답변 생성 중...</span>
+                  <div className="pt-4 border-t border-gray-700/50">
+                    <div className="flex items-center justify-center gap-3 text-blue-400 py-4">
+                      <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium">답변 생성 중...</span>
+                    </div>
                   </div>
                 )}
               </div>
             )}
+
+            {/* 마이크 버튼: 질문 탭 내부 중앙 배치 */}
+            <div className="flex flex-col items-center justify-center py-8">
+              <button
+                onMouseDown={() => {
+                  if (recognitionRef.current && currentTab === 'question') {
+                    transcriptRef.current = '';
+                    setIsMicActive(true);
+                    setIsListening(true);
+                    setQuestion('');
+                    setAnswer('');
+                    try {
+                      recognitionRef.current.start();
+                    } catch (err) {
+                      console.error('[음성 인식 시작 실패]', err);
+                      setIsMicActive(false);
+                      setIsListening(false);
+                      alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
+                    }
+                  }
+                }}
+                onMouseUp={() => {
+                  if (recognitionRef.current && isListening) {
+                    recognitionRef.current.stop();
+                  }
+                  setIsMicActive(false);
+                  setIsListening(false);
+                }}
+                onTouchStart={() => {
+                  if (recognitionRef.current && currentTab === 'question') {
+                    transcriptRef.current = '';
+                    setIsMicActive(true);
+                    setIsListening(true);
+                    setQuestion('');
+                    setAnswer('');
+                    try {
+                      recognitionRef.current.start();
+                    } catch (err) {
+                      console.error('[음성 인식 시작 실패]', err);
+                      setIsMicActive(false);
+                      setIsListening(false);
+                      alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
+                    }
+                  }
+                }}
+                onTouchEnd={() => {
+                  if (recognitionRef.current && isListening) {
+                    recognitionRef.current.stop();
+                  }
+                  setIsMicActive(false);
+                  setIsListening(false);
+                }}
+                className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
+                  isMicActive || isListening
+                    ? 'bg-red-500 scale-110 shadow-red-500/50'
+                    : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:scale-105 hover:shadow-blue-500/50'
+                }`}
+              >
+                <Mic className={`w-12 h-12 text-white ${isMicActive || isListening ? 'animate-pulse' : ''}`} />
+                {(isMicActive || isListening) && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping"></span>
+                )}
+              </button>
+              <p className={`text-center text-sm mt-4 font-medium transition-colors ${
+                isMicActive || isListening ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {isMicActive || isListening ? '🎤 듣고 있어요...' : '길게 눌러서 질문하기'}
+              </p>
+              {!question && !answer && (
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  예: "이차방정식이 뭐야?", "영어 문법 설명해줘"
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-lg border-t border-gray-800">
         <div className="max-w-md mx-auto px-4 py-3">
-          <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="grid grid-cols-4 gap-2">
             <button
               onClick={() => setCurrentTab('math')}
-              className={`flex flex-col items-center py-3 rounded-xl transition-colors ${
+              className={`flex flex-col items-center py-3 rounded-xl transition-all ${
                 currentTab === 'math'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
               }`}
             >
               <BookOpen className="w-6 h-6 mb-1" />
@@ -392,10 +474,10 @@ export default function MKMStudyApp() {
             </button>
             <button
               onClick={() => setCurrentTab('english')}
-              className={`flex flex-col items-center py-3 rounded-xl transition-colors ${
+              className={`flex flex-col items-center py-3 rounded-xl transition-all ${
                 currentTab === 'english'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
               }`}
             >
               <MessageCircle className="w-6 h-6 mb-1" />
@@ -403,10 +485,10 @@ export default function MKMStudyApp() {
             </button>
             <button
               onClick={() => setCurrentTab('question')}
-              className={`flex flex-col items-center py-3 rounded-xl transition-colors ${
+              className={`flex flex-col items-center py-3 rounded-xl transition-all ${
                 currentTab === 'question'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
               }`}
             >
               <HelpCircle className="w-6 h-6 mb-1" />
@@ -414,84 +496,16 @@ export default function MKMStudyApp() {
             </button>
             <button
               onClick={() => setCurrentTab('dashboard')}
-              className={`flex flex-col items-center py-3 rounded-xl transition-colors ${
+              className={`flex flex-col items-center py-3 rounded-xl transition-all ${
                 currentTab === 'dashboard'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
               }`}
             >
               <BarChart3 className="w-6 h-6 mb-1" />
               <span className="text-xs font-medium">대시보드</span>
             </button>
           </div>
-
-          {/* 마이크 버튼: 질문 탭에서만 표시 (중복 방지) */}
-          {currentTab === 'question' && (
-            <>
-              <div className="flex justify-center">
-                <button
-                  onMouseDown={() => {
-                    if (recognitionRef.current && currentTab === 'question') {
-                      setIsMicActive(true);
-                      setIsListening(true);
-                      setAnswer('');
-                      try {
-                        recognitionRef.current.start();
-                      } catch (err) {
-                        console.error('Failed to start recognition:', err);
-                        setIsMicActive(false);
-                        setIsListening(false);
-                      }
-                    }
-                  }}
-                  onMouseUp={() => {
-                    if (recognitionRef.current && isListening) {
-                      recognitionRef.current.stop();
-                    }
-                    setIsMicActive(false);
-                    setIsListening(false);
-                    // 답변은 recognition.onresult에서 처리
-                  }}
-                  onTouchStart={() => {
-                    if (recognitionRef.current && currentTab === 'question') {
-                      transcriptRef.current = ''; // 이전 결과 초기화
-                      setIsMicActive(true);
-                      setIsListening(true);
-                      setQuestion('');
-                      setAnswer('');
-                      try {
-                        console.log('[음성 인식] 시작');
-                        recognitionRef.current.start();
-                      } catch (err) {
-                        console.error('[음성 인식 시작 실패]', err);
-                        setIsMicActive(false);
-                        setIsListening(false);
-                        alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
-                      }
-                    }
-                  }}
-                  onTouchEnd={() => {
-                    if (recognitionRef.current && isListening) {
-                      recognitionRef.current.stop();
-                    }
-                    setIsMicActive(false);
-                    setIsListening(false);
-                    // 답변은 recognition.onresult에서 처리
-                  }}
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
-                    isMicActive || isListening
-                      ? 'bg-red-500 scale-110 shadow-lg shadow-red-500/50'
-                      : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:scale-105'
-                  }`}
-                >
-                  <Mic className="w-10 h-10 text-white" />
-                </button>
-              </div>
-              <p className="text-center text-xs text-gray-500 mt-2">
-                {isMicActive || isListening ? '듣고 있어요...' : '길게 눌러서 질문하기'}
-              </p>
-            </>
-          )}
         </div>
       </div>
     </div>
