@@ -355,7 +355,7 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
   }
 }
 
-export async function answerQuestion(question: string, vectorState: Vector4D): Promise<string> {
+export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {
   const context = `현재 학생의 4D 벡터 상태:
 - S(정서): ${(vectorState.S * 100).toFixed(0)}%
 - L(논리): ${(vectorState.L * 100).toFixed(0)}%
@@ -364,5 +364,11 @@ export async function answerQuestion(question: string, vectorState: Vector4D): P
 
 위 상태를 고려하여 답변해주세요.`;
 
-  return await askGemma3(question, context);
+  // 과목별 특화 모델 선택 (System Prompt 기반)
+  // 주의: VPS에 mkm-math, mkm-english 모델이 생성되어 있어야 함
+  const model = subject === 'math' ? 'mkm-math' : 
+                subject === 'english' ? 'mkm-english' : 
+                undefined; // 기본 모델 (llama3.2:3b 또는 gemma3:4b)
+
+  return await askGemma3(question, context, model);
 }
