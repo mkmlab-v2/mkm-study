@@ -175,7 +175,7 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 타임아웃 30초로 증가
       
       const requestBody: Gemma3Request = {
-        model: 'gemma3:4b',
+        model: 'llama3.2:3b',  // 🚀 가장 빠르고 대화 지속성 우수한 모델로 변경
         prompt: fullPrompt,
         stream: false,
         options: {
