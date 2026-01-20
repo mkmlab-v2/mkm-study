@@ -204,6 +204,15 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         console.error(`[Gemma3] HTTP 에러 ${response.status}:`, errorText);
+        
+        // 모델이 없으면 폴백 모델로 재시도 (한 번만)
+        if (!hasTriedFallback && errorText.includes('not found') && currentModel === preferredModel) {
+          console.log(`[Gemma3] ${preferredModel} 모델 없음, ${fallbackModel}로 폴백 시도...`);
+          currentModel = fallbackModel;
+          hasTriedFallback = true;
+          continue; // 폴백 모델로 재시도
+        }
+        
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
