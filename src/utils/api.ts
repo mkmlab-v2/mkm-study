@@ -158,6 +158,10 @@ export async function connectToVPSGemma3(): Promise<{ connected: boolean; model?
  * VPS Gemma3에 질문하기 (재시도 로직 포함)
  */
 export async function askGemma3(prompt: string, context?: string, model?: string): Promise<string> {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:160',message:'askGemma3 함수 진입',data:{promptLength:prompt.length,contextLength:context?.length,model,gemma3Url:GEMMA3_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
+  
   const startTime = Date.now();
   const retryCount = 3;
   
@@ -174,10 +178,18 @@ export async function askGemma3(prompt: string, context?: string, model?: string
   let currentModel = userModel || preferredModel; // 사용자 모델 우선
   let hasTriedFallback = false;
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:174',message:'모델 선택 완료',data:{userModel,preferredModel,fallbackModel,currentModel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+  
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < retryCount; attempt++) {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:180',message:'API 요청 시도 시작',data:{attempt:attempt+1,retryCount,currentModel,url:`${GEMMA3_URL}/api/generate`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 타임아웃 30초로 증가
       
@@ -204,9 +216,17 @@ export async function askGemma3(prompt: string, context?: string, model?: string
       
       clearTimeout(timeoutId);
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:207',message:'API 응답 수신',data:{status:response.status,ok:response.ok,currentModel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         console.error(`[Gemma3] HTTP 에러 ${response.status}:`, errorText);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:210',message:'HTTP 에러 발생',data:{status:response.status,errorText:errorText.substring(0,200),hasTriedFallback,currentModel,preferredModel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         
         // 모델이 없으면 폴백 모델로 재시도 (한 번만)
         if (!hasTriedFallback && errorText.includes('not found') && currentModel === preferredModel) {
@@ -222,11 +242,20 @@ export async function askGemma3(prompt: string, context?: string, model?: string
       const data: Gemma3Response = await response.json();
       const latency = Date.now() - startTime;
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:225',message:'응답 파싱 완료',data:{hasResponse:!!data.response,responseLength:data.response?.length,responsePreview:data.response?.substring(0,100),latency,currentModel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      
       console.log(`[Gemma3] 응답 수신 (${latency}ms):`, data.response?.substring(0, 100) + '...');
       
       return data.response || '';
     } catch (error: any) {
       lastError = error;
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:228',message:'API 요청 실패',data:{attempt:attempt+1,errorMessage:error.message,errorName:error.name,isAbort:error.name==='AbortError',currentModel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       console.error(`[Gemma3] 시도 ${attempt + 1} 실패:`, error.message || error);
       
       // 마지막 시도가 아니면 잠시 대기 후 재시도
@@ -238,6 +267,10 @@ export async function askGemma3(prompt: string, context?: string, model?: string
       }
     }
   }
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:243',message:'모든 시도 실패',data:{lastError:lastError?.message,retryCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   
   // 모든 시도 실패
   console.error('[Gemma3] 모든 시도 실패:', lastError);
@@ -327,8 +360,16 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
 }
 
 export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:358',message:'answerQuestion 함수 진입',data:{question:question.substring(0,50),subject,vectorState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  
   // 대화 히스토리 로드
   const history = loadConversationHistory();
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:362',message:'대화 히스토리 로드 완료',data:{historyLength:history.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   
   // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
   let learningContext = '';
@@ -380,8 +421,16 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
                 subject === 'english' ? 'mkm-english' : 
                 undefined; // 기본 모델 (llama3.2:3b 또는 gemma3:4b)
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:384',message:'askGemma3 호출 전',data:{model,contextLength:context.length,questionLength:question.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
+  
   // 답변 요청
   const answer = await askGemma3(question, context, model);
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:386',message:'askGemma3 응답 수신',data:{answerLength:answer?.length,answerPreview:answer?.substring(0,100),isEmpty:!answer},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   
   // 대화 히스토리에 추가
   const updatedHistory = [
