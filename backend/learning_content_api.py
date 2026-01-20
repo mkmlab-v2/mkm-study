@@ -353,7 +353,9 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"Starting FastAPI server at http://0.0.0.0:8003")
-    print(f"API Documentation: http://0.0.0.0:8003/docs")
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    # 포트 충돌 방지: Sentinel API(8003)와 분리하여 8004 포트 사용
+    PORT = int(os.getenv("LEARNING_API_PORT", "8004"))
+    print(f"Starting FastAPI server at http://0.0.0.0:{PORT}")
+    print(f"API Documentation: http://0.0.0.0:{PORT}/docs")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
 

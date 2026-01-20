@@ -40,7 +40,8 @@ GEMMA3_URL = _vps_url if _vps_url and ":11434" in _vps_url else "http://148.230.
 logger.info(f"[Athena Generator] Gemma3 URL: {GEMMA3_URL}")
 
 # 학습 정보 API
-LEARNING_API_BASE = "http://148.230.97.246:8003"
+# 포트 충돌 방지: Sentinel API(8003)와 분리하여 학습 콘텐츠 API는 8004 포트 사용
+LEARNING_API_BASE = os.getenv("LEARNING_API_BASE") or "http://148.230.97.246:8004"
 
 def load_curriculum_map() -> Dict[str, Any]:
     """커리큘럼 맵 로드"""
