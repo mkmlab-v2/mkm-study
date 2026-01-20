@@ -4,6 +4,7 @@ import { generateMathProblem, explainMathConcept } from '../utils/api';
 import { answerQuestion } from '../utils/api';
 import { adjustLearningDifficulty, isOptimalForLearning, convertRPPGResultToState } from '../utils/adaptiveLearningScheduler';
 import type { RPPGResult } from '../utils/rppgProcessor';
+import { findExamMappingsByUnit, generateExamMappingAlert } from '../data/examBackMapping';
 
 interface CurriculumUnit {
   unit: string;
