@@ -228,6 +228,71 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
   return '죄송합니다. 현재 AI 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.';
 }
 
+// 대화 히스토리 저장 (IndexedDB 또는 localStorage)
+const CONVERSATION_HISTORY_KEY = 'mkm-study-conversation-history';
+const MAX_HISTORY_LENGTH = 10; // 최근 10개 대화만 유지
+
+/**
+ * 대화 히스토리 로드
+ */
+function loadConversationHistory(): Array<{role: string, content: string}> {
+  try {
+    const stored = localStorage.getItem(CONVERSATION_HISTORY_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('[대화 히스토리 로드 실패]', e);
+  }
+  return [];
+}
+
+/**
+ * 대화 히스토리 저장
+ */
+function saveConversationHistory(history: Array<{role: string, content: string}>): void {
+  try {
+    // 최근 10개만 유지
+    const trimmed = history.slice(-MAX_HISTORY_LENGTH);
+    localStorage.setItem(CONVERSATION_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('[대화 히스토리 저장 실패]', e);
+  }
+}
+
+/**
+ * VPS Gemma3에 질문하기 (대화 히스토리 포함, 재시도 로직 포함)
+ */
+export async function answerQuestion(question: string, currentState: Vector4D): Promise<string> {
+  // 대화 히스토리 로드
+  const history = loadConversationHistory();
+  
+  // 4D 벡터 컨텍스트 생성
+  const context = `현재 상태: S=${currentState.S.toFixed(2)}, L=${currentState.L.toFixed(2)}, K=${currentState.K.toFixed(2)}, M=${currentState.M.toFixed(2)}`;
+  
+  // 전체 대화 히스토리를 프롬프트로 변환
+  const historyPrompt = history.length > 0
+    ? `\n\n이전 대화:\n${history.map(msg => `${msg.role === 'user' ? '사용자' : 'AI'}: ${msg.content}`).join('\n')}`
+    : '';
+  
+  const fullPrompt = `${context}${historyPrompt}\n\n사용자 질문: ${question}\n\n답변:`;
+  
+  // 답변 요청
+  const answer = await askGemma3(fullPrompt);
+  
+  // 대화 히스토리에 추가
+  const updatedHistory = [
+    ...history,
+    { role: 'user', content: question },
+    { role: 'assistant', content: answer }
+  ];
+  
+  // 대화 히스토리 저장
+  saveConversationHistory(updatedHistory);
+  
+  return answer;
+}
+
 export async function generateMathProblem(level: string, topic: string): Promise<string> {
   const prompt = `EBS 교과과정 기반으로 ${level} ${topic}에 대한 문제를 생성해주세요.
 문제는 다음 형식으로 작성해주세요:
