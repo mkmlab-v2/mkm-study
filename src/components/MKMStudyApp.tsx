@@ -15,6 +15,7 @@ import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutio
 import { loadCoinBalance, saveCoinBalance, earnCoins, spendCoins, calculateCoinsFromStudy } from '../utils/coinSystem';
 import { answerQuestion, answerQuestionStreaming } from '../utils/api';
 import { getTutorPersona, type BioCognitiveType } from '../utils/personaMatcher';
+import { analyzeConfidence, extractVoiceIndicatorsFromTranscript } from '../utils/metaCognitionAnalyzer';
 
 type TabType = 'math' | 'english' | 'question' | 'dashboard';
 
