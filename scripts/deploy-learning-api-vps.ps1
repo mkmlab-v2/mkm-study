@@ -89,10 +89,11 @@ if ($USE_SSH_KEY) {
 
 Write-Host "✅ 의존성 설치 완료" -ForegroundColor Green
 
-# 서버 실행 (백그라운드)
-Write-Host "🚀 API 서버 시작 중..." -ForegroundColor Cyan
+# 서버 실행 (백그라운드, 포트 8004)
+Write-Host "🚀 API 서버 시작 중 (포트 8004)..." -ForegroundColor Cyan
 $startCmd = @"
 cd $VPS_BACKEND_DIR
+export LEARNING_API_PORT=8004
 nohup python3 learning_content_api.py > learning_api.log 2>&1 &
 echo `$!
 "@
