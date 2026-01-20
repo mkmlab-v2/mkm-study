@@ -1,7 +1,7 @@
 import type { Vector4D } from './types';
 import type { AudioMetrics } from '../components/AudioCapture';
 import type { SpeechAnalysis } from '../components/SpeechRecognition';
-import type { RPPGResult } from './rppgProcessor';
+// import type { RPPGResult } from './rppgProcessor'; // 사용하지 않음
 
 export interface BiometricData {
   heartRate?: number;

@@ -74,3 +74,23 @@ export interface StudySession {
   heartRate: number;
   alertLevel: 'normal' | 'warning' | 'danger';
 }
+
+export interface VectorizeResponse {
+  vector_4d: Vector4D;
+  dcv?: number;
+  lambda?: number;
+}
+
+export interface ICDAnalysisResponse {
+  pathology_level: 'SL' | 'IL' | 'DL';
+  pattern_type: string;
+  dcv: number;
+  lambda: number;
+  critical_leverage_point?: string;
+}
+
+export interface DynamicsPrediction {
+  predictions: Vector4D[];
+  collapse_risk: number;
+  optimal_timing?: number;
+}

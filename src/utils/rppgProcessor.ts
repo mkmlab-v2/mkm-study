@@ -2,6 +2,8 @@ export interface RPPGResult {
   heartRate: number;
   confidence: number;
   signalQuality: 'good' | 'fair' | 'poor';
+  drowsiness?: number; // 졸음 수치 (0-100)
+  hrv?: number; // 심박 변이도
 }
 
 export class RPPGProcessor {
@@ -11,7 +13,7 @@ export class RPPGProcessor {
   private isProcessing: boolean = false;
   private rgbValues: number[][] = [];
   private maxBufferSize: number = 256;
-  private faceDetectionInterval: number = 10;
+  // private faceDetectionInterval: number = 10; // 사용하지 않음
   private frameCount: number = 0;
   private lastHeartRate: number = 72;
 

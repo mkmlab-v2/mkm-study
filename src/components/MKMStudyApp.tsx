@@ -19,7 +19,7 @@ export default function MKMStudyApp() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [hasCharacter, setHasCharacter] = useState(false);
   const [studyTime, setStudyTime] = useState(0);
-  const [focusScore, setFocusScore] = useState(75);
+  const [focusScore] = useState(75);
   const [coinBalance, setCoinBalance] = useState<CoinBalance>(loadCoinBalance());
   const [currentState, setCurrentState] = useState<Vector4D>({
     S: 0.5,
@@ -168,15 +168,19 @@ export default function MKMStudyApp() {
             <div className="bg-gray-900 rounded-2xl p-4 border border-gray-700">
               <h3 className="text-sm font-bold text-white mb-3">실시간 모니터링</h3>
               <RPPGVideoFeed
-                onHeartRateUpdate={(hr) => {
-                  setCurrentState(prev => ({
-                    ...prev,
-                    M: Math.max(0.2, Math.min(0.8, hr / 100))
-                  }));
-                }}
-                onPostureUpdate={(score) => {
-                  if (score < 60) {
-                    setPostureWarning(true);
+                onHeartRate={(result) => {
+                  // 심박수 기반 M 차원 업데이트
+                  if (result.heartRate) {
+                    setCurrentState(prev => ({
+                      ...prev,
+                      M: Math.max(0.2, Math.min(0.8, result.heartRate / 100))
+                    }));
+                  }
+                  // 졸음 감지
+                  if (result.drowsiness && result.drowsiness > 80) {
+                    setDrowsinessAlert(true);
+                  } else {
+                    setDrowsinessAlert(false);
                   }
                 }}
               />

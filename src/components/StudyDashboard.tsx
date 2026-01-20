@@ -22,6 +22,9 @@ export default function StudyDashboard() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [biometricData, setBiometricData] = useState<BiometricData>({});
   const [healthScore, setHealthScore] = useState(85);
+  
+  // currentTime은 향후 UI에 표시 예정 (현재는 타이머만 작동)
+  void currentTime;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -82,34 +85,6 @@ export default function StudyDashboard() {
     }));
   };
 
-  const getMotivationalQuote = () => {
-    const quotes = [
-      "Focus on progress, not perfection.",
-      "Every expert was once a beginner.",
-      "Your mind is a powerful tool.",
-      "Stay committed to your goals.",
-      "Knowledge is power.",
-      "Success is the sum of small efforts."
-    ];
-    return quotes[Math.floor(currentTime.getTime() / 60000) % quotes.length];
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">

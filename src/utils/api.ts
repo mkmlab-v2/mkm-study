@@ -85,46 +85,136 @@ export function getMockPrediction(currentState: Vector4D, steps: number = 10): V
   return predictions;
 }
 
-const GEMMA3_URL = 'http://148.230.97.246:11434';
+// VPS Gemma3 API 연결 (환경 변수 우선 사용)
+const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || 'http://148.230.97.246:11434';
 
 interface Gemma3Request {
   model: string;
   prompt: string;
   stream?: boolean;
   context?: string;
+  options?: {
+    temperature?: number;
+    num_predict?: number;
+  };
 }
 
 interface Gemma3Response {
   response: string;
   done: boolean;
+  eval_count?: number;
 }
 
-export async function askGemma3(prompt: string, context?: string): Promise<string> {
+/**
+ * VPS Gemma3 연결 확인
+ */
+export async function connectToVPSGemma3(): Promise<{ connected: boolean; model?: string; error?: string }> {
   try {
-    const requestBody: Gemma3Request = {
-      model: 'gemma3',
-      prompt: context ? `${context}\n\n${prompt}` : prompt,
-      stream: false
-    };
-
-    const response = await fetch(`${GEMMA3_URL}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${GEMMA3_URL}/api/tags`, {
+      method: 'GET',
+      signal: controller.signal
     });
-
+    
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      return {
+        connected: false,
+        error: `HTTP ${response.status}: ${response.statusText}`
+      };
     }
-
-    const data: Gemma3Response = await response.json();
-    return data.response;
-  } catch (error) {
-    console.error('Gemma3 API Error:', error);
-    return '죄송합니다. 현재 AI 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.';
+    
+    const data = await response.json();
+    const models = data.models || [];
+    const gemma3Model = models.find((m: any) => 
+      m.name.includes('gemma3') || m.name.includes('gemma-3') || m.name.includes('gemma:3')
+    );
+    
+    if (gemma3Model) {
+      return {
+        connected: true,
+        model: gemma3Model.name
+      };
+    } else {
+      return {
+        connected: false,
+        error: 'Gemma3 모델이 VPS에 설치되지 않았습니다'
+      };
+    }
+  } catch (error: any) {
+    return {
+      connected: false,
+      error: error.message || 'VPS Gemma3 연결 실패'
+    };
   }
+}
+
+/**
+ * VPS Gemma3에 질문하기 (재시도 로직 포함)
+ */
+export async function askGemma3(prompt: string, context?: string): Promise<string> {
+  const startTime = Date.now();
+  const retryCount = 3;
+  
+  const fullPrompt = context
+    ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
+    : prompt;
+  
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < retryCount; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const requestBody: Gemma3Request = {
+        model: 'gemma3:4b',
+        prompt: fullPrompt,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 500
+        }
+      };
+
+      const response = await fetch(`${GEMMA3_URL}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: Gemma3Response = await response.json();
+      const latency = Date.now() - startTime;
+      
+      console.log(`[Gemma3] 응답 시간: ${latency}ms`);
+      
+      return data.response || '';
+    } catch (error: any) {
+      lastError = error;
+      
+      // 마지막 시도가 아니면 잠시 대기 후 재시도
+      if (attempt < retryCount - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  
+  // 모든 시도 실패
+  console.error('Gemma3 API Error:', lastError);
+  return '죄송합니다. 현재 AI 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.';
 }
 
 export async function generateMathProblem(level: string, topic: string): Promise<string> {
