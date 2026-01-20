@@ -167,6 +167,12 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
   
   console.log('[Gemma3] 요청 시작:', { prompt: prompt.substring(0, 50) + '...', url: GEMMA3_URL });
   
+  // 모델 자동 선택: llama3.2:3b 우선, 없으면 gemma3:4b 폴백
+  const preferredModel = 'llama3.2:3b';
+  const fallbackModel = 'gemma3:4b';
+  let currentModel = preferredModel;
+  let hasTriedFallback = false;
+  
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < retryCount; attempt++) {
@@ -174,12 +180,8 @@ export async function askGemma3(prompt: string, context?: string): Promise<strin
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 타임아웃 30초로 증가
       
-      // 모델 자동 선택: llama3.2:3b 우선, 없으면 gemma3:4b 폴백
-      const preferredModel = 'llama3.2:3b';
-      const fallbackModel = 'gemma3:4b';
-      
       const requestBody: Gemma3Request = {
-        model: preferredModel,  // 🚀 가장 빠르고 대화 지속성 우수한 모델
+        model: currentModel,  // 🚀 가장 빠르고 대화 지속성 우수한 모델 (자동 폴백)
         prompt: fullPrompt,
         stream: false,
         options: {
