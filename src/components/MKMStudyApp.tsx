@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BookOpen, MessageCircle, HelpCircle, BarChart3, Mic } from 'lucide-react';
 import ZodiacEvolution from './ZodiacEvolution';
 import CharacterSelection from './CharacterSelection';
@@ -28,10 +28,13 @@ export default function MKMStudyApp() {
     M: 0.65
   });
   const [isMicActive, setIsMicActive] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [postureWarning, setPostureWarning] = useState(false);
   const [drowsinessAlert, setDrowsinessAlert] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -43,7 +46,46 @@ export default function MKMStudyApp() {
       setHasCharacter(true);
     }
 
-    return () => clearInterval(timer);
+    // Web Speech API 초기화
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'ko-KR';
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        transcriptRef.current = transcript;
+        setQuestion(transcript);
+        setIsListening(false);
+        setIsMicActive(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        setIsMicActive(false);
+        if (event.error === 'no-speech') {
+          setQuestion('');
+          alert('음성이 감지되지 않았습니다. 다시 시도해주세요.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setIsMicActive(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      clearInterval(timer);
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -279,44 +321,95 @@ export default function MKMStudyApp() {
             </button>
           </div>
 
-          <div className="flex justify-center">
-            <button
-              onMouseDown={async () => {
-                setIsMicActive(true);
-                if (currentTab === 'question') {
-                  const mockQuestion = '이차함수의 개념을 설명해주세요';
-                  setQuestion(mockQuestion);
-                  setAnswer('');
-                  const response = await answerQuestion(mockQuestion, currentState);
-                  setAnswer(response);
-                  setIsMicActive(false);
-                }
-              }}
-              onMouseUp={() => setIsMicActive(false)}
-              onTouchStart={async () => {
-                setIsMicActive(true);
-                if (currentTab === 'question') {
-                  const mockQuestion = '이차함수의 개념을 설명해주세요';
-                  setQuestion(mockQuestion);
-                  setAnswer('');
-                  const response = await answerQuestion(mockQuestion, currentState);
-                  setAnswer(response);
-                  setIsMicActive(false);
-                }
-              }}
-              onTouchEnd={() => setIsMicActive(false)}
-              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
-                isMicActive
-                  ? 'bg-red-500 scale-110 shadow-lg shadow-red-500/50'
-                  : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:scale-105'
-              }`}
-            >
-              <Mic className="w-10 h-10 text-white" />
-            </button>
-          </div>
-          <p className="text-center text-xs text-gray-500 mt-2">
-            {isMicActive ? '듣고 있어요...' : '길게 눌러서 질문하기'}
-          </p>
+          {/* 마이크 버튼: 질문 탭에서만 표시 (중복 방지) */}
+          {currentTab === 'question' && (
+            <>
+              <div className="flex justify-center">
+                <button
+                  onMouseDown={() => {
+                    if (recognitionRef.current && currentTab === 'question') {
+                      setIsMicActive(true);
+                      setIsListening(true);
+                      setAnswer('');
+                      try {
+                        recognitionRef.current.start();
+                      } catch (err) {
+                        console.error('Failed to start recognition:', err);
+                        setIsMicActive(false);
+                        setIsListening(false);
+                      }
+                    }
+                  }}
+                  onMouseUp={async () => {
+                    if (recognitionRef.current && isListening) {
+                      recognitionRef.current.stop();
+                    }
+                    setIsMicActive(false);
+                    setIsListening(false);
+                    
+                    // 음성 인식이 완료되었고 질문이 있으면 답변 요청
+                    if (transcriptRef.current && transcriptRef.current.trim()) {
+                      const recognizedQuestion = transcriptRef.current.trim();
+                      setQuestion(recognizedQuestion);
+                      try {
+                        const response = await answerQuestion(recognizedQuestion, currentState);
+                        setAnswer(response);
+                      } catch (error) {
+                        console.error('Failed to get answer:', error);
+                        setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다.');
+                      }
+                      transcriptRef.current = '';
+                    }
+                  }}
+                  onTouchStart={() => {
+                    if (recognitionRef.current && currentTab === 'question') {
+                      setIsMicActive(true);
+                      setIsListening(true);
+                      setAnswer('');
+                      try {
+                        recognitionRef.current.start();
+                      } catch (err) {
+                        console.error('Failed to start recognition:', err);
+                        setIsMicActive(false);
+                        setIsListening(false);
+                      }
+                    }
+                  }}
+                  onTouchEnd={async () => {
+                    if (recognitionRef.current && isListening) {
+                      recognitionRef.current.stop();
+                    }
+                    setIsMicActive(false);
+                    setIsListening(false);
+                    
+                    // 음성 인식이 완료되었고 질문이 있으면 답변 요청
+                    if (transcriptRef.current && transcriptRef.current.trim()) {
+                      const recognizedQuestion = transcriptRef.current.trim();
+                      setQuestion(recognizedQuestion);
+                      try {
+                        const response = await answerQuestion(recognizedQuestion, currentState);
+                        setAnswer(response);
+                      } catch (error) {
+                        console.error('Failed to get answer:', error);
+                        setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다.');
+                      }
+                      transcriptRef.current = '';
+                    }
+                  }}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+                    isMicActive || isListening
+                      ? 'bg-red-500 scale-110 shadow-lg shadow-red-500/50'
+                      : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:scale-105'
+                  }`}
+                >
+                  <Mic className="w-10 h-10 text-white" />
+                </button>
+              </div>
+              <p className="text-center text-xs text-gray-500 mt-2">
+                {isMicActive || isListening ? '듣고 있어요...' : '길게 눌러서 질문하기'}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
