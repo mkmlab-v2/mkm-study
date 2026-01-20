@@ -113,10 +113,10 @@ Start-Sleep -Seconds 3
 # 포트 충돌 방지: 학습 콘텐츠 API는 8004 포트 사용
 $LEARNING_API_PORT = 8004
 try {
-    $response = Invoke-WebRequest -Uri "http://$VPS_HOST:$LEARNING_API_PORT/" -TimeoutSec 5 -UseBasicParsing
+    $response = Invoke-WebRequest -Uri "http://${VPS_HOST}:${LEARNING_API_PORT}/" -TimeoutSec 5 -UseBasicParsing
     if ($response.StatusCode -eq 200) {
         Write-Host "✅ API 서버 정상 작동 중" -ForegroundColor Green
-        Write-Host "   URL: http://$VPS_HOST:$LEARNING_API_PORT/" -ForegroundColor Cyan
+        Write-Host "   URL: http://${VPS_HOST}:${LEARNING_API_PORT}/" -ForegroundColor Cyan
     }
 } catch {
     Write-Host "⚠️ API 서버 응답 확인 실패 (서버가 시작 중일 수 있습니다)" -ForegroundColor Yellow
