@@ -18,8 +18,11 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
 
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let mounted = true;
 
     const startCamera = async () => {
+      if (!mounted) return;
+      
       setIsLoading(true);
       setError(null);
 
@@ -33,22 +36,36 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
           audio: false
         });
 
+        if (!mounted) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setHasPermission(true);
           onStreamReady?.(stream);
 
           videoRef.current.onloadedmetadata = () => {
-            if (videoRef.current) {
-              processorRef.current = new RPPGProcessor(videoRef.current);
-              processorRef.current.start((result) => {
+            if (!mounted || !videoRef.current) return;
+            
+            // 기존 프로세서 정리
+            if (processorRef.current) {
+              processorRef.current.stop();
+            }
+            
+            processorRef.current = new RPPGProcessor(videoRef.current);
+            processorRef.current.start((result) => {
+              if (mounted) {
                 setHeartRate(result);
                 onHeartRate?.(result);
-              });
-            }
+              }
+            });
           };
         }
       } catch (err) {
+        if (!mounted) return;
+        
         const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
 
         let userFriendlyError = 'Failed to access camera';
@@ -63,21 +80,28 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
         setError(userFriendlyError);
         onError?.(userFriendlyError);
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     startCamera();
 
     return () => {
+      mounted = false;
       if (processorRef.current) {
         processorRef.current.stop();
+        processorRef.current = null;
       }
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [onStreamReady, onError, onHeartRate]);
+  }, []); // 의존성 배열 비움 (마운트 시 한 번만 실행)
 
   return (
     <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden">

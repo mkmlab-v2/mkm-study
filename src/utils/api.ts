@@ -191,7 +191,7 @@ export async function askGemma3(prompt: string, context?: string, model?: string
         }
       };
 
-      console.log(`[Gemma3] 시도 ${attempt + 1}/${retryCount}`, { url: `${GEMMA3_URL}/api/generate` });
+      console.log(`[Gemma3] 시도 ${attempt + 1}/${retryCount} (모델: ${currentModel})`, { url: `${GEMMA3_URL}/api/generate` });
 
       const response = await fetch(`${GEMMA3_URL}/api/generate`, {
         method: 'POST',
@@ -356,13 +356,44 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
 }
 
 export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {
+  // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
+  let learningContext = '';
+  let constitution: '태양인' | '태음인' | '소양인' | '소음인' | undefined = undefined;
+  
+  try {
+    // 체질 정보 로드 (localStorage에서)
+    const evolutionData = localStorage.getItem('zodiac-evolution');
+    if (evolutionData) {
+      const parsed = JSON.parse(evolutionData);
+      // 12지지 동물을 체질로 매핑 (간단한 매핑)
+      const zodiacToConstitution: Record<string, '태양인' | '태음인' | '소양인' | '소음인'> = {
+        'rat': '소양인', 'ox': '태음인', 'tiger': '태양인', 'rabbit': '소음인',
+        'dragon': '태양인', 'snake': '소음인', 'horse': '소양인', 'goat': '태음인',
+        'monkey': '소양인', 'rooster': '태음인', 'dog': '태양인', 'pig': '소음인'
+      };
+      constitution = zodiacToConstitution[parsed.zodiacId] || undefined;
+    }
+  } catch (e) {
+    console.warn('[학습 정보] 체질 정보 로드 실패:', e);
+  }
+
+  try {
+    const { searchLearningContent } = await import('./learningContentApi');
+    const contents = await searchLearningContent(question, subject, constitution, vectorState);
+    if (contents.length > 0) {
+      learningContext = `\n\n관련 학습 자료:\n${contents.slice(0, 3).map(c => `- ${c.topic}: ${c.content.substring(0, 100)}...`).join('\n')}`;
+    }
+  } catch (error) {
+    console.warn('[학습 정보] 검색 실패, 학습 정보 없이 진행:', error);
+  }
+
   const context = `현재 학생의 4D 벡터 상태:
 - S(정서): ${(vectorState.S * 100).toFixed(0)}%
 - L(논리): ${(vectorState.L * 100).toFixed(0)}%
 - K(지식): ${(vectorState.K * 100).toFixed(0)}%
-- M(신체): ${(vectorState.M * 100).toFixed(0)}%
+- M(신체): ${(vectorState.M * 100).toFixed(0)}%${constitution ? `\n- 체질: ${constitution}` : ''}${learningContext}
 
-위 상태를 고려하여 답변해주세요.`;
+위 상태와 학습 자료를 고려하여 답변해주세요.`;
 
   // 과목별 특화 모델 선택 (System Prompt 기반)
   // 주의: VPS에 mkm-math, mkm-english 모델이 생성되어 있어야 함
