@@ -18,9 +18,11 @@ $VPS_USER = "root"  # 실제 사용자명으로 변경 필요
 $VPS_BACKEND_DIR = "/var/www/mkm-study/backend"
 $VPS_LEARNING_DIR = "/var/www/mkm-study/learning-content"
 
-# 로컬 경로
-$LOCAL_BACKEND = "C:\workspace\projects\mkm\mkm-study20260120\backend"
-$LOCAL_SCRIPT = "$LOCAL_BACKEND\learning_content_api.py"
+# 로컬 경로 (현재 디렉토리 기준)
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$PROJECT_ROOT = Split-Path -Parent $SCRIPT_DIR
+$LOCAL_BACKEND = Join-Path $PROJECT_ROOT "backend"
+$LOCAL_SCRIPT = Join-Path $LOCAL_BACKEND "learning_content_api.py"
 
 # 파일 존재 확인
 if (-not (Test-Path $LOCAL_SCRIPT)) {
