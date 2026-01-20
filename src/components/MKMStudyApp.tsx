@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BookOpen, MessageCircle, HelpCircle, BarChart3, Mic } from 'lucide-react';
 import ZodiacEvolution from './ZodiacEvolution';
 import CharacterSelection from './CharacterSelection';
+import UserProfileForm, { UserProfile } from './UserProfileForm';
 import FourDVectorDashboard from './FourDVectorDashboard';
 import RewardShop from './RewardShop';
 import MathLearning from './MathLearning';
@@ -17,7 +18,9 @@ type TabType = 'math' | 'english' | 'question' | 'dashboard';
 export default function MKMStudyApp() {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [hasProfile, setHasProfile] = useState(false);
   const [hasCharacter, setHasCharacter] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [studyTime, setStudyTime] = useState(0);
   const [focusScore] = useState(75);
   const [coinBalance, setCoinBalance] = useState<CoinBalance>(loadCoinBalance());
@@ -43,6 +46,18 @@ export default function MKMStudyApp() {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+
+    // 사용자 프로필 확인
+    const savedProfile = localStorage.getItem('user-profile');
+    if (savedProfile) {
+      try {
+        const profile = JSON.parse(savedProfile) as UserProfile;
+        setUserProfile(profile);
+        setHasProfile(true);
+      } catch (e) {
+        console.error('[프로필 로드 실패]', e);
+      }
+    }
 
     const saved = localStorage.getItem('zodiac-evolution');
     if (saved) {
@@ -98,9 +113,18 @@ export default function MKMStudyApp() {
           // ref에서 최신 currentState 값 사용
           const latestState = currentStateRef.current;
           
+          console.log('[음성 인식] API 호출 시작:', { transcript: transcript.trim(), subject, latestState });
+          
           const response = await answerQuestion(transcript.trim(), latestState, subject);
+          
           console.log('[Gemma3] 답변 수신:', response);
-          setAnswer(response);
+          
+          if (!response || response.trim().length === 0) {
+            console.error('[Gemma3] 빈 응답 수신');
+            setAnswer('죄송합니다. 답변을 생성하지 못했습니다. VPS Gemma3 서버 연결을 확인해주세요.');
+          } else {
+            setAnswer(response);
+          }
         } catch (error) {
           console.error('[답변 생성 실패]', error);
           setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -211,6 +235,20 @@ export default function MKMStudyApp() {
 
   const quote = motivationalQuotes[Math.floor(currentTime.getTime() / 60000) % motivationalQuotes.length];
 
+  // 사용자 프로필이 없으면 프로필 입력 폼 표시
+  if (!hasProfile) {
+    return (
+      <UserProfileForm
+        onComplete={(profile) => {
+          setUserProfile(profile);
+          setHasProfile(true);
+          localStorage.setItem('user-profile', JSON.stringify(profile));
+        }}
+      />
+    );
+  }
+
+  // 캐릭터가 없으면 캐릭터 선택 화면 표시
   if (!hasCharacter) {
     return <CharacterSelection onSelect={handleCharacterSelect} />;
   }

@@ -224,10 +224,20 @@ export async function askGemma3(prompt: string, context?: string, model?: string
       
       console.log(`[Gemma3] 응답 수신 (${latency}ms):`, data.response?.substring(0, 100) + '...');
       
+      if (!data.response || data.response.trim().length === 0) {
+        throw new Error('빈 응답 수신');
+      }
+      
       return data.response || '';
     } catch (error: any) {
       lastError = error;
-      console.error(`[Gemma3] 시도 ${attempt + 1} 실패:`, error.message || error);
+      console.error(`[Gemma3] 시도 ${attempt + 1} 실패:`, {
+        error: error.message || error,
+        name: error.name,
+        isAbort: error.name === 'AbortError',
+        currentModel,
+        url: `${GEMMA3_URL}/api/generate`
+      });
       
       // 마지막 시도가 아니면 잠시 대기 후 재시도
       if (attempt < retryCount - 1) {
@@ -240,8 +250,18 @@ export async function askGemma3(prompt: string, context?: string, model?: string
   }
   
   // 모든 시도 실패
-  console.error('[Gemma3] 모든 시도 실패:', lastError);
-  return '죄송합니다. 현재 AI 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.';
+  console.error('[Gemma3] 모든 시도 실패:', {
+    lastError: lastError?.message,
+    retryCount,
+    url: GEMMA3_URL
+  });
+  
+  return `죄송합니다. AI 서버에 연결할 수 없습니다. (에러: ${lastError?.message || '알 수 없는 오류'})
+  
+확인 사항:
+1. VPS Gemma3 서버가 실행 중인지 확인: ${GEMMA3_URL}
+2. 네트워크 연결 상태 확인
+3. 브라우저 콘솔에서 자세한 에러 메시지 확인`;
 }
 
 // 대화 히스토리 저장 (IndexedDB 또는 localStorage)
@@ -327,28 +347,47 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
 }
 
 export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {
+  console.log('[answerQuestion] 시작:', { question: question.substring(0, 50), subject, vectorState });
+  
   // 대화 히스토리 로드
   const history = loadConversationHistory();
   
   // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
   let learningContext = '';
   let constitution: '태양인' | '태음인' | '소양인' | '소음인' | undefined = undefined;
+  let userProfileInfo = '';
   
   try {
-    // 체질 정보 로드 (localStorage에서)
-    const evolutionData = localStorage.getItem('zodiac-evolution');
-    if (evolutionData) {
-      const parsed = JSON.parse(evolutionData);
-      // 12지지 동물을 체질로 매핑 (간단한 매핑)
-      const zodiacToConstitution: Record<string, '태양인' | '태음인' | '소양인' | '소음인'> = {
-        'rat': '소양인', 'ox': '태음인', 'tiger': '태양인', 'rabbit': '소음인',
-        'dragon': '태양인', 'snake': '소음인', 'horse': '소양인', 'goat': '태음인',
-        'monkey': '소양인', 'rooster': '태음인', 'dog': '태양인', 'pig': '소음인'
-      };
-      constitution = zodiacToConstitution[parsed.zodiacId] || undefined;
+    // 사용자 프로필 정보 로드 (localStorage에서)
+    const profileData = localStorage.getItem('user-profile');
+    if (profileData) {
+      const profile = JSON.parse(profileData);
+      constitution = profile.constitution || undefined;
+      
+      // 사용자 프로필 정보를 컨텍스트에 포함
+      userProfileInfo = `
+사용자 프로필:
+- 생년월일시: ${profile.birthYear}년 ${profile.birthMonth}월 ${profile.birthDay}일 ${profile.birthHour}시 ${profile.birthMinute}분
+- 체질: ${constitution || '미진단'}
+- 건강정보: 키 ${profile.height}cm, 몸무게 ${profile.weight}kg, 혈액형 ${profile.bloodType}형
+${profile.chronicDiseases?.length > 0 ? `- 만성질환: ${profile.chronicDiseases.join(', ')}` : ''}
+${profile.medications?.length > 0 ? `- 복용약물: ${profile.medications.join(', ')}` : ''}`;
+    } else {
+      // 프로필이 없으면 체질 정보만 확인 (하위 호환성)
+      const evolutionData = localStorage.getItem('zodiac-evolution');
+      if (evolutionData) {
+        const parsed = JSON.parse(evolutionData);
+        // 12지지 동물을 체질로 매핑 (간단한 매핑)
+        const zodiacToConstitution: Record<string, '태양인' | '태음인' | '소양인' | '소음인'> = {
+          'rat': '소양인', 'ox': '태음인', 'tiger': '태양인', 'rabbit': '소음인',
+          'dragon': '태양인', 'snake': '소음인', 'horse': '소양인', 'goat': '태음인',
+          'monkey': '소양인', 'rooster': '태음인', 'dog': '태양인', 'pig': '소음인'
+        };
+        constitution = zodiacToConstitution[parsed.zodiacId] || undefined;
+      }
     }
   } catch (e) {
-    console.warn('[학습 정보] 체질 정보 로드 실패:', e);
+    console.warn('[학습 정보] 사용자 정보 로드 실패:', e);
   }
 
   try {
@@ -370,7 +409,7 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
 - S(정서): ${(vectorState.S * 100).toFixed(0)}%
 - L(논리): ${(vectorState.L * 100).toFixed(0)}%
 - K(지식): ${(vectorState.K * 100).toFixed(0)}%
-- M(신체): ${(vectorState.M * 100).toFixed(0)}%${constitution ? `\n- 체질: ${constitution}` : ''}${learningContext}${historyPrompt}
+- M(신체): ${(vectorState.M * 100).toFixed(0)}%${userProfileInfo}${learningContext}${historyPrompt}
 
 위 상태와 학습 자료를 고려하여 답변해주세요.`;
 
