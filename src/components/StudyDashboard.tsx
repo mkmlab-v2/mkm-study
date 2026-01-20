@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Heart, Activity, Camera, Shield } from 'lucide-react';
+import { Heart, Activity, Camera, Shield, Play, Square } from 'lucide-react';
 import RPPGVideoFeed from './RPPGVideoFeed';
 import DigitalTimerWidget from './DigitalTimerWidget';
 import FourDVectorDashboard from './FourDVectorDashboard';
 import AudioCapture, { AudioMetrics } from './AudioCapture';
 import SpeechRecognition, { SpeechAnalysis } from './SpeechRecognition';
+import Card from './ui/Card';
+import FlowCard from './ui/FlowCard';
 import type { Vector4D } from '../utils/types';
 import { biometricMapper, BiometricData } from '../utils/biometricMapper';
 import { RPPGResult } from '../utils/rppgProcessor';
@@ -88,51 +90,24 @@ export default function StudyDashboard() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+      <div className="max-w-md mx-auto w-full px-4 py-6 space-y-4">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-1">학습 모니터링</h1>
+          <p className="text-sm text-gray-400">실시간 생체 신호 분석</p>
+        </div>
+
+        {/* 4D Vector Dashboard */}
         <FourDVectorDashboard currentState={currentState} healthScore={healthScore} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <Camera className="w-5 h-5 text-blue-400" />
-              <h3 className="text-lg font-bold text-white">rPPG 모니터</h3>
-            </div>
-
-            {!isSessionActive ? (
-              <div className="aspect-video bg-gray-800/50 rounded-2xl flex items-center justify-center border border-gray-700/50">
-                <div className="text-center">
-                  <Camera className="w-16 h-16 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">카메라 비활성화</p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <RPPGVideoFeed
-                  onStreamReady={(stream) => console.log('Camera ready:', stream)}
-                  onError={handleCameraError}
-                  onHeartRate={handleHeartRate}
-                />
-                {cameraError && (
-                  <div className="mt-4 p-3 bg-red-900/30 border border-red-700/50 rounded-xl">
-                    <p className="text-red-400 text-xs">{cameraError}</p>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="mt-4 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <Heart className="w-4 h-4 text-red-400" />
-                <span className="text-gray-400">심박수</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-400" />
-                <span className="text-gray-400">각성도</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
+        {/* Session Control */}
+        <FlowCard
+          icon={isSessionActive ? Square : Play}
+          title={isSessionActive ? '학습 세션 진행 중' : '학습 세션 시작'}
+          description={isSessionActive ? '실시간 모니터링 활성화' : '시작 버튼을 눌러 학습을 시작하세요'}
+          status={isSessionActive ? 'active' : 'pending'}
+        >
+          <div className="space-y-4">
             <DigitalTimerWidget
               isActive={isSessionActive}
               startTime={sessionStartTime}
@@ -140,55 +115,94 @@ export default function StudyDashboard() {
               onStop={handleStopSession}
             />
           </div>
-        </div>
+        </FlowCard>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AudioCapture
-            isActive={isSessionActive}
-            onAudioData={handleAudioData}
-            onError={(error) => console.error('Audio error:', error)}
-          />
+        {/* rPPG Monitor */}
+        <Card icon={Camera} title="rPPG 모니터" subtitle="심박수 및 각성도 측정">
+          {!isSessionActive ? (
+            <div className="aspect-video bg-gray-800/50 rounded-2xl flex items-center justify-center border border-gray-700/50">
+              <div className="text-center">
+                <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 text-xs">세션 시작 후 활성화됩니다</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <RPPGVideoFeed
+                onStreamReady={(stream) => console.log('Camera ready:', stream)}
+                onError={handleCameraError}
+                onHeartRate={handleHeartRate}
+              />
+              {cameraError && (
+                <div className="mt-3 p-3 bg-red-900/30 border border-red-700/50 rounded-xl">
+                  <p className="text-red-400 text-xs">{cameraError}</p>
+                </div>
+              )}
+              <div className="mt-3 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-400" />
+                  <span className="text-gray-400">심박수</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-blue-400" />
+                  <span className="text-gray-400">각성도</span>
+                </div>
+              </div>
+            </>
+          )}
+        </Card>
 
-          <SpeechRecognition
-            isActive={isSessionActive}
-            onTranscript={(text, isFinal) => {
-              if (isFinal) {
-                console.log('Final transcript:', text);
-              }
-            }}
-            onAnalysis={handleSpeechAnalysis}
-          />
-        </div>
-
-        <div className="backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 border border-gray-800/50 shadow-2xl">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="w-5 h-5 text-green-400" />
-            <h3 className="text-lg font-bold text-white">Zero-Trust 보안</h3>
+        {/* Audio & Speech */}
+        {isSessionActive && (
+          <div className="space-y-4">
+            <Card icon={Activity} title="음성 분석" subtitle="발음 및 피로도 측정">
+              <div className="space-y-4">
+                <AudioCapture
+                  isActive={isSessionActive}
+                  onAudioData={handleAudioData}
+                  onError={(error) => console.error('Audio error:', error)}
+                />
+                <SpeechRecognition
+                  isActive={isSessionActive}
+                  onTranscript={(text, isFinal) => {
+                    if (isFinal) {
+                      console.log('Final transcript:', text);
+                    }
+                  }}
+                  onAnalysis={handleSpeechAnalysis}
+                />
+              </div>
+            </Card>
           </div>
-          <div className="text-center py-8">
-            <Shield className="w-12 h-12 text-green-400 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm mb-1">모든 영상/음성 데이터는</p>
-            <p className="text-gray-400 text-sm">브라우저 내에서만 처리됩니다</p>
+        )}
+
+        {/* Security */}
+        <Card icon={Shield} title="Zero-Trust 보안" subtitle="로컬 처리 보장">
+          <div className="text-center py-6">
+            <Shield className="w-10 h-10 text-green-400 mx-auto mb-3" />
+            <p className="text-gray-400 text-xs mb-1">모든 영상/음성 데이터는</p>
+            <p className="text-gray-400 text-xs">브라우저 내에서만 처리됩니다</p>
           </div>
-        </div>
+        </Card>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 backdrop-blur-xl bg-gray-900/80 border-t border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4">
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 backdrop-blur-xl bg-gray-900/90 border-t border-gray-800/50">
+        <div className="max-w-md mx-auto px-4">
           <div className="flex items-center justify-around py-3">
-            <button className="flex flex-col items-center gap-1 px-6 py-2 text-blue-400 transition-colors">
+            <button className="flex flex-col items-center gap-1 px-4 py-2 text-blue-400 transition-colors">
               <Activity className="w-5 h-5" />
               <span className="text-xs font-medium">모니터</span>
             </button>
-            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+            <button className="flex flex-col items-center gap-1 px-4 py-2 text-gray-400 hover:text-white transition-colors">
               <Heart className="w-5 h-5" />
               <span className="text-xs font-medium">건강</span>
             </button>
-            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+            <button className="flex flex-col items-center gap-1 px-4 py-2 text-gray-400 hover:text-white transition-colors">
               <Camera className="w-5 h-5" />
               <span className="text-xs font-medium">카메라</span>
             </button>
-            <button className="flex flex-col items-center gap-1 px-6 py-2 text-gray-400 hover:text-white transition-colors">
+            <button className="flex flex-col items-center gap-1 px-4 py-2 text-gray-400 hover:text-white transition-colors">
               <Shield className="w-5 h-5" />
               <span className="text-xs font-medium">보안</span>
             </button>

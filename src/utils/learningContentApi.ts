@@ -6,8 +6,8 @@
 
 import type { Vector4D } from './types';
 
-// 포트 충돌 방지: Sentinel API(8003)와 분리하여 학습 콘텐츠 API는 8004 포트 사용
-const API_BASE = import.meta.env.VITE_LEARNING_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || 'http://148.230.97.246:8004';
+// 포트 충돌 방지: Sentinel API(8003), Apocalypse API(8004)와 분리하여 학습 콘텐츠 API는 8005 포트 사용
+const API_BASE = import.meta.env.VITE_LEARNING_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || 'http://148.230.97.246:8005';
 
 export interface LearningContent {
   id: string;

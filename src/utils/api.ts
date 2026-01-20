@@ -277,37 +277,8 @@ function saveConversationHistory(history: Array<{role: string, content: string}>
 }
 
 /**
- * VPS Gemma3에 질문하기 (대화 히스토리 포함, 재시도 로직 포함)
+ * VPS Gemma3에 질문하기 (대화 히스토리, 학습 정보, 체질 정보 통합)
  */
-export async function answerQuestion(question: string, currentState: Vector4D): Promise<string> {
-  // 대화 히스토리 로드
-  const history = loadConversationHistory();
-  
-  // 4D 벡터 컨텍스트 생성
-  const context = `현재 상태: S=${currentState.S.toFixed(2)}, L=${currentState.L.toFixed(2)}, K=${currentState.K.toFixed(2)}, M=${currentState.M.toFixed(2)}`;
-  
-  // 전체 대화 히스토리를 프롬프트로 변환
-  const historyPrompt = history.length > 0
-    ? `\n\n이전 대화:\n${history.map(msg => `${msg.role === 'user' ? '사용자' : 'AI'}: ${msg.content}`).join('\n')}`
-    : '';
-  
-  const fullPrompt = `${context}${historyPrompt}\n\n사용자 질문: ${question}\n\n답변:`;
-  
-  // 답변 요청
-  const answer = await askGemma3(fullPrompt);
-  
-  // 대화 히스토리에 추가
-  const updatedHistory = [
-    ...history,
-    { role: 'user', content: question },
-    { role: 'assistant', content: answer }
-  ];
-  
-  // 대화 히스토리 저장
-  saveConversationHistory(updatedHistory);
-  
-  return answer;
-}
 
 export async function generateMathProblem(level: string, topic: string): Promise<string> {
   const prompt = `EBS 교과과정 기반으로 ${level} ${topic}에 대한 문제를 생성해주세요.
@@ -356,6 +327,9 @@ export async function generateEnglishSentence(difficulty: 'easy' | 'medium' | 'h
 }
 
 export async function answerQuestion(question: string, vectorState: Vector4D, subject?: 'math' | 'english'): Promise<string> {
+  // 대화 히스토리 로드
+  const history = loadConversationHistory();
+  
   // 학습 정보 시스템에서 관련 콘텐츠 검색 (선택적)
   let learningContext = '';
   let constitution: '태양인' | '태음인' | '소양인' | '소음인' | undefined = undefined;
@@ -387,11 +361,16 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
     console.warn('[학습 정보] 검색 실패, 학습 정보 없이 진행:', error);
   }
 
+  // 전체 대화 히스토리를 프롬프트로 변환
+  const historyPrompt = history.length > 0
+    ? `\n\n이전 대화:\n${history.map(msg => `${msg.role === 'user' ? '사용자' : 'AI'}: ${msg.content}`).join('\n')}`
+    : '';
+
   const context = `현재 학생의 4D 벡터 상태:
 - S(정서): ${(vectorState.S * 100).toFixed(0)}%
 - L(논리): ${(vectorState.L * 100).toFixed(0)}%
 - K(지식): ${(vectorState.K * 100).toFixed(0)}%
-- M(신체): ${(vectorState.M * 100).toFixed(0)}%${constitution ? `\n- 체질: ${constitution}` : ''}${learningContext}
+- M(신체): ${(vectorState.M * 100).toFixed(0)}%${constitution ? `\n- 체질: ${constitution}` : ''}${learningContext}${historyPrompt}
 
 위 상태와 학습 자료를 고려하여 답변해주세요.`;
 
@@ -401,5 +380,18 @@ export async function answerQuestion(question: string, vectorState: Vector4D, su
                 subject === 'english' ? 'mkm-english' : 
                 undefined; // 기본 모델 (llama3.2:3b 또는 gemma3:4b)
 
-  return await askGemma3(question, context, model);
+  // 답변 요청
+  const answer = await askGemma3(question, context, model);
+  
+  // 대화 히스토리에 추가
+  const updatedHistory = [
+    ...history,
+    { role: 'user', content: question },
+    { role: 'assistant', content: answer }
+  ];
+  
+  // 대화 히스토리 저장
+  saveConversationHistory(updatedHistory);
+  
+  return answer;
 }

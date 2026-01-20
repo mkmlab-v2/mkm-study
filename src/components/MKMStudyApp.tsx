@@ -189,35 +189,38 @@ export default function MKMStudyApp() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col pb-32">
+    <div className="min-h-screen bg-black text-white flex flex-col pb-24">
       <div className="flex-1 max-w-md mx-auto w-full px-4 py-6">
-        <header className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
+        {/* Header */}
+        <header className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-1 flex items-center justify-center gap-2">
             <BookOpen className="w-6 h-6 text-blue-500" />
             MKM Study v2.0
           </h1>
-          <p className="text-gray-400 text-sm">지능형 평형 학습 요새</p>
+          <p className="text-gray-400 text-xs">지능형 평형 학습 요새</p>
         </header>
 
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-8 mb-6 text-center border border-gray-700">
-          <div className="text-6xl font-bold mb-3 tracking-tight">
+        {/* Time Widget */}
+        <div className="bg-gradient-to-br from-gray-900/60 to-gray-800/40 rounded-2xl p-6 mb-4 text-center border border-gray-700/50">
+          <div className="text-5xl font-bold mb-2 tracking-tight">
             {formatTime(currentTime)}
           </div>
-          <div className="text-gray-400 text-sm mb-4">
+          <div className="text-gray-400 text-xs mb-3">
             {formatDate(currentTime)}
           </div>
-          <div className="text-blue-400 italic text-sm">
+          <div className="text-blue-400 italic text-xs">
             "{quote}"
           </div>
         </div>
 
+        {/* Alerts */}
         {(postureWarning || drowsinessAlert) && (
-          <div className="mb-6 bg-red-500/10 border-2 border-red-500 rounded-2xl p-6 text-center">
-            <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-2xl font-bold text-red-400 mb-2">
+          <div className="mb-4 bg-red-500/10 border-2 border-red-500/50 rounded-2xl p-5 text-center">
+            <div className="text-4xl mb-3">⚠️</div>
+            <h3 className="text-lg font-bold text-red-400 mb-2">
               {postureWarning ? '자세 경고!' : '졸음 감지!'}
             </h3>
-            <p className="text-white mb-4">
+            <p className="text-white text-sm mb-4">
               {postureWarning
                 ? '목을 똑바로 세우고 어깨를 펴주세요. 잠시 휴식이 필요합니다.'
                 : '졸음 수치가 높습니다. 5분 스트레칭을 권장합니다.'}
@@ -227,7 +230,7 @@ export default function MKMStudyApp() {
                 setPostureWarning(false);
                 setDrowsinessAlert(false);
               }}
-              className="bg-red-500 text-white px-6 py-2 rounded-xl font-bold hover:bg-red-600 transition-colors"
+              className="bg-red-500 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-red-600 transition-colors"
             >
               확인했어요
             </button>
@@ -235,10 +238,10 @@ export default function MKMStudyApp() {
         )}
 
         {currentTab === 'dashboard' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <ZodiacEvolution studyTime={studyTime} focusScore={focusScore} />
             <FourDVectorDashboard currentState={currentState} />
-            <div className="bg-gray-900 rounded-2xl p-4 border border-gray-700">
+            <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800/50">
               <h3 className="text-sm font-bold text-white mb-3">실시간 모니터링</h3>
               <RPPGVideoFeed
                 onHeartRate={(result) => {
@@ -268,33 +271,33 @@ export default function MKMStudyApp() {
 
         {currentTab === 'question' && (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-6 border border-purple-500/30">
-              <h2 className="text-2xl font-bold mb-2 text-white">질문 답변</h2>
-              <p className="text-sm text-gray-400 mb-4">
+            <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-5 border border-purple-500/30">
+              <h2 className="text-xl font-bold mb-2 text-white">질문 답변</h2>
+              <p className="text-xs text-gray-400 mb-3">
                 아래 마이크 버튼을 길게 눌러 질문하세요!
               </p>
-              <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-300">
+              <div className="bg-gray-800/50 rounded-xl p-3 text-xs text-gray-300">
                 💡 Tip: VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.
               </div>
             </div>
 
             {question && (
-              <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+              <div className="bg-gray-900/40 rounded-2xl p-5 border border-gray-800/50">
                 <div className="mb-4">
-                  <div className="text-sm text-gray-400 mb-2">질문:</div>
-                  <div className="text-white font-bold">{question}</div>
+                  <div className="text-xs text-gray-400 mb-2">질문:</div>
+                  <div className="text-white font-bold text-sm">{question}</div>
                 </div>
                 {answer ? (
                   <div>
-                    <div className="text-sm text-blue-400 mb-2">답변:</div>
-                    <div className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    <div className="text-xs text-blue-400 mb-2">답변:</div>
+                    <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
                       {answer}
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-blue-400">
-                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                    답변 생성 중...
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs">답변 생성 중...</span>
                   </div>
                 )}
               </div>
