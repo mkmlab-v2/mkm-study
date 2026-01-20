@@ -78,19 +78,11 @@ export default function MKMStudyApp() {
     recognition.lang = 'ko-KR';
 
     recognition.onresult = async (event: any) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:57',message:'onresult 호출됨',data:{resultsLength:event.results?.length,firstResult:event.results?.[0]?.[0]?.transcript?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       const transcript = event.results[0][0].transcript;
       transcriptRef.current = transcript;
       setQuestion(transcript);
       setIsListening(false);
       setIsMicActive(false);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:65',message:'transcript 추출 완료',data:{transcript:transcript?.substring(0,50),trimmed:transcript?.trim()?.substring(0,50),isEmpty:!transcript?.trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       // 음성 인식 완료 후 즉시 답변 요청
       if (transcript && transcript.trim()) {
@@ -106,23 +98,10 @@ export default function MKMStudyApp() {
           // ref에서 최신 currentState 값 사용
           const latestState = currentStateRef.current;
           
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:73',message:'answerQuestion 호출 전',data:{transcript:transcript.trim().substring(0,50),subject,currentTab:latestTab,vectorState:latestState},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          
           const response = await answerQuestion(transcript.trim(), latestState, subject);
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:75',message:'answerQuestion 응답 수신',data:{responseLength:response?.length,responsePreview:response?.substring(0,100),isEmpty:!response},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          
           console.log('[Gemma3] 답변 수신:', response);
           setAnswer(response);
         } catch (error) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:77',message:'answerQuestion 에러',data:{errorMessage:error instanceof Error?error.message:String(error),errorStack:error instanceof Error?error.stack:undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          
           console.error('[답변 생성 실패]', error);
           setAnswer('죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.');
         }
@@ -130,10 +109,6 @@ export default function MKMStudyApp() {
     };
 
     recognition.onerror = (event: any) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:83',message:'음성 인식 에러',data:{error:event.error,errorType:event.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       console.error('[음성 인식 에러]', event.error);
       setIsListening(false);
       setIsMicActive(false);
@@ -413,25 +388,13 @@ export default function MKMStudyApp() {
               <div className="flex justify-center">
                 <button
                   onMouseDown={() => {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:363',message:'마이크 버튼 클릭 (마우스)',data:{hasRecognition:!!recognitionRef.current,currentTab,isQuestionTab:currentTab==='question'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-                    // #endregion
-                    
                     if (recognitionRef.current && currentTab === 'question') {
                       setIsMicActive(true);
                       setIsListening(true);
                       setAnswer('');
                       try {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:370',message:'recognition.start() 호출',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-                        // #endregion
-                        
                         recognitionRef.current.start();
                       } catch (err) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7242/ingest/d6c29a92-7aaa-4c05-89b6-575ee18629a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MKMStudyApp.tsx:373',message:'recognition.start() 실패',data:{error:err instanceof Error?err.message:String(err)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-                        // #endregion
-                        
                         console.error('Failed to start recognition:', err);
                         setIsMicActive(false);
                         setIsListening(false);
