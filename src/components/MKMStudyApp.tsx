@@ -13,6 +13,7 @@ import { Vector4D, ZodiacAnimal, CharacterTrait, CoinBalance } from '../utils/ty
 import type { RPPGResult } from '../utils/rppgProcessor';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
 import { loadCoinBalance, saveCoinBalance, earnCoins, spendCoins, calculateCoinsFromStudy } from '../utils/coinSystem';
+import { addConversationMessage, endConversationSession, getConversationStats } from '../utils/conversationMemory';
 import { answerQuestion, answerQuestionStreaming } from '../utils/api';
 import { getTutorPersona, type BioCognitiveType } from '../utils/personaMatcher';
 import { analyzeConfidence, extractVoiceIndicatorsFromTranscript } from '../utils/metaCognitionAnalyzer';
@@ -164,6 +165,23 @@ export default function MKMStudyApp() {
           
           console.log('[음성 인식] 스트리밍 API 호출 시작:', { transcript: transcript.trim(), subject, latestState });
           
+          // 사용자 질문을 대화 메모리에 저장 (4D 증류)
+          await addConversationMessage(
+            'user',
+            transcript.trim(),
+            {
+              tab: latestTab,
+              subject,
+              confidence: confidenceAnalysis?.confidence,
+              emotion: rppgState ? (rppgState.stress > 0.5 ? 'stressed' : 'calm') : undefined
+            },
+            {
+              rppgState,
+              currentState: latestState,
+              tutorPersona: tutorPersona || undefined
+            }
+          );
+          
           // 스트리밍 응답 처리
           let fullAnswer = '';
           for await (const chunk of answerQuestionStreaming(transcript.trim(), latestState, subject)) {
@@ -176,6 +194,21 @@ export default function MKMStudyApp() {
           if (!fullAnswer || fullAnswer.trim().length === 0) {
             console.error('[Gemma3 Streaming] 빈 응답 수신');
             setAnswer('죄송합니다. 답변을 생성하지 못했습니다. VPS Gemma3 서버 연결을 확인해주세요.');
+          } else {
+            // AI 답변을 대화 메모리에 저장 (4D 증류)
+            await addConversationMessage(
+              'assistant',
+              fullAnswer,
+              {
+                tab: latestTab,
+                subject
+              },
+              {
+                rppgState,
+                currentState: latestState,
+                tutorPersona: tutorPersona || undefined
+              }
+            );
           }
         } catch (error) {
           console.error('[답변 생성 실패]', error);
@@ -405,6 +438,17 @@ export default function MKMStudyApp() {
               <div className="bg-gray-800/50 rounded-xl p-3 text-xs text-gray-300">
                 💡 Tip: VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.
               </div>
+              {(() => {
+                const stats = getConversationStats();
+                if (stats.totalMessages > 0) {
+                  return (
+                    <div className="mt-2 bg-blue-500/10 rounded-xl p-2 text-xs text-blue-300 border border-blue-500/30">
+                      🧠 대화 메모리: {stats.totalMessages}개 메시지 저장됨 (온디바이스 4D 증류)
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               {tutorPersona && (
                 <div className="mt-3 bg-blue-500/10 rounded-xl p-3 text-xs text-blue-300 border border-blue-500/30">
                   🎭 튜터 페르소나: <span className="font-bold">{tutorPersona.name}</span> - {tutorPersona.personality}
