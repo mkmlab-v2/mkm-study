@@ -96,13 +96,17 @@ export default function MKMStudyApp() {
     // Web Speech API 초기화
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.warn('[음성 인식] Web Speech API를 사용할 수 없습니다.');
+      console.error('[음성 인식] Web Speech API를 사용할 수 없습니다. Chrome 또는 Edge 브라우저를 사용해주세요.');
+      // 사용자에게 알림
+      if (currentTab === 'question') {
+        alert('이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 또는 Edge 브라우저를 사용해주세요.');
+      }
       return;
     }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // 중간 결과도 받기 (머뭇거림 감지용)
     recognition.lang = 'ko-KR';
 
     recognition.onresult = async (event: any) => {
@@ -474,9 +478,21 @@ export default function MKMStudyApp() {
 
             {/* 마이크 버튼: 질문 탭 내부 중앙 배치 */}
             <div className="flex flex-col items-center justify-center py-8">
+              {!recognitionRef.current && (
+                <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-center">
+                  <p className="text-yellow-300 text-sm">
+                    ⚠️ 음성 인식을 사용할 수 없습니다. Chrome 또는 Edge 브라우저를 사용해주세요.
+                  </p>
+                </div>
+              )}
               <button
+                disabled={!recognitionRef.current}
                 onMouseDown={() => {
-                  if (recognitionRef.current && currentTab === 'question') {
+                  if (!recognitionRef.current) {
+                    alert('음성 인식을 사용할 수 없습니다. Chrome 또는 Edge 브라우저를 사용해주세요.');
+                    return;
+                  }
+                  if (currentTab === 'question') {
                     transcriptRef.current = '';
                     setIsMicActive(true);
                     setIsListening(true);
@@ -491,7 +507,12 @@ export default function MKMStudyApp() {
                       setIsMicActive(false);
                       setIsListening(false);
                       setSpeechStartTime(null);
-                      alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
+                      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+                      if (errorMsg.includes('not-allowed') || errorMsg.includes('Permission denied')) {
+                        alert('마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+                      } else {
+                        alert(`음성 인식을 시작할 수 없습니다: ${errorMsg}`);
+                      }
                     }
                   }
                 }}
@@ -503,7 +524,11 @@ export default function MKMStudyApp() {
                   setIsListening(false);
                 }}
                 onTouchStart={() => {
-                  if (recognitionRef.current && currentTab === 'question') {
+                  if (!recognitionRef.current) {
+                    alert('음성 인식을 사용할 수 없습니다. Chrome 또는 Edge 브라우저를 사용해주세요.');
+                    return;
+                  }
+                  if (currentTab === 'question') {
                     transcriptRef.current = '';
                     setIsMicActive(true);
                     setIsListening(true);
@@ -518,7 +543,12 @@ export default function MKMStudyApp() {
                       setIsMicActive(false);
                       setIsListening(false);
                       setSpeechStartTime(null);
-                      alert('음성 인식을 시작할 수 없습니다. 브라우저가 Web Speech API를 지원하는지 확인해주세요.');
+                      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+                      if (errorMsg.includes('not-allowed') || errorMsg.includes('Permission denied')) {
+                        alert('마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+                      } else {
+                        alert(`음성 인식을 시작할 수 없습니다: ${errorMsg}`);
+                      }
                     }
                   }
                 }}
@@ -530,7 +560,9 @@ export default function MKMStudyApp() {
                   setIsListening(false);
                 }}
                 className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
-                  isMicActive || isListening
+                  !recognitionRef.current
+                    ? 'bg-gray-600 cursor-not-allowed opacity-50'
+                    : isMicActive || isListening
                     ? 'bg-red-500 scale-110 shadow-red-500/50'
                     : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:scale-105 hover:shadow-blue-500/50'
                 }`}

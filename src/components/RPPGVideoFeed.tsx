@@ -15,87 +15,89 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
   const [hasPermission, setHasPermission] = useState(false);
   const [heartRate, setHeartRate] = useState<RPPGResult | null>(null);
   const processorRef = useRef<RPPGProcessor | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    // 기존 스트림 정리
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    // 기존 프로세서 정리
+    if (processorRef.current) {
+      processorRef.current.stop();
+      processorRef.current = null;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        },
+        audio: false
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setHasPermission(true);
+        onStreamReady?.(stream);
+
+        videoRef.current.onloadedmetadata = () => {
+          if (!videoRef.current) return;
+          
+          // 기존 프로세서 정리
+          if (processorRef.current) {
+            processorRef.current.stop();
+          }
+          
+          processorRef.current = new RPPGProcessor(videoRef.current);
+          processorRef.current.start((result) => {
+            setHeartRate(result);
+            onHeartRate?.(result);
+          });
+        };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
+
+      let userFriendlyError = '카메라에 접근할 수 없습니다.';
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+        userFriendlyError = '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.';
+      } else if (errorMessage.includes('not found') || errorMessage.includes('NotFoundError')) {
+        userFriendlyError = '카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요.';
+      } else if (errorMessage.includes('timeout')) {
+        userFriendlyError = '카메라 연결 시간 초과. 다시 시도해주세요.';
+      } else if (errorMessage.includes('NotReadableError')) {
+        userFriendlyError = '카메라가 다른 프로그램에서 사용 중입니다.';
+      }
+
+      setError(userFriendlyError);
+      setHasPermission(false);
+      onError?.(userFriendlyError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    let mounted = true;
-
-    const startCamera = async () => {
-      if (!mounted) return;
-      
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user'
-          },
-          audio: false
-        });
-
-        if (!mounted) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setHasPermission(true);
-          onStreamReady?.(stream);
-
-          videoRef.current.onloadedmetadata = () => {
-            if (!mounted || !videoRef.current) return;
-            
-            // 기존 프로세서 정리
-            if (processorRef.current) {
-              processorRef.current.stop();
-            }
-            
-            processorRef.current = new RPPGProcessor(videoRef.current);
-            processorRef.current.start((result) => {
-              if (mounted) {
-                setHeartRate(result);
-                onHeartRate?.(result);
-              }
-            });
-          };
-        }
-      } catch (err) {
-        if (!mounted) return;
-        
-        const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
-
-        let userFriendlyError = 'Failed to access camera';
-        if (errorMessage.includes('Permission denied')) {
-          userFriendlyError = 'Camera permission denied. Please allow camera access.';
-        } else if (errorMessage.includes('not found')) {
-          userFriendlyError = 'No camera found. Please connect a camera.';
-        } else if (errorMessage.includes('timeout')) {
-          userFriendlyError = 'Camera connection timeout. Please try again.';
-        }
-
-        setError(userFriendlyError);
-        onError?.(userFriendlyError);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
     startCamera();
 
     return () => {
-      mounted = false;
       if (processorRef.current) {
         processorRef.current.stop();
         processorRef.current = null;
       }
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -120,6 +122,12 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
             <AlertCircle className="w-12 h-12 text-red-500" />
             <p className="text-white text-sm">{error}</p>
             <CameraOff className="w-8 h-8 text-gray-500 mt-2" />
+            <button
+              onClick={startCamera}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+            >
+              다시 시도
+            </button>
           </div>
         </div>
       )}
