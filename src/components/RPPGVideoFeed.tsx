@@ -45,14 +45,48 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
     try {
       console.log('[카메라] 권한 요청 시작...');
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
-        },
-        audio: false
-      });
+      // 사용 가능한 카메라 목록 확인
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        console.log('[카메라] 사용 가능한 카메라:', videoDevices.length, '개');
+        if (videoDevices.length === 0) {
+          throw new Error('카메라를 찾을 수 없습니다.');
+        }
+      } catch (enumError) {
+        console.warn('[카메라] 카메라 목록 확인 실패:', enumError);
+        // 계속 진행 (권한이 없어도 시도)
+      }
+
+      // 타임아웃을 위한 AbortController 사용
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn('[카메라] 타임아웃 발생, 요청 취소');
+        controller.abort();
+      }, 10000); // 10초 타임아웃
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          },
+          audio: false
+        }, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+      } catch (getUserMediaError) {
+        clearTimeout(timeoutId);
+        // 타임아웃이 아닌 다른 오류인 경우
+        if (getUserMediaError instanceof Error && getUserMediaError.name === 'AbortError') {
+          // 타임아웃으로 인한 취소
+          throw new Error('카메라 시작 시간 초과. 카메라가 다른 프로그램에서 사용 중이거나 응답하지 않습니다.');
+        }
+        throw getUserMediaError;
+      }
 
       console.log('[카메라] 권한 허용됨, 스트림 획득 성공');
 
@@ -100,9 +134,9 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
       } else if (errorMessage.includes('not found') || errorMessage.includes('NotFoundError') || errorName === 'NotFoundError') {
         userFriendlyError = '카메라를 찾을 수 없습니다.';
         helpText = '카메라가 연결되어 있는지 확인하고, 다른 프로그램에서 사용 중이 아닌지 확인해주세요.';
-      } else if (errorMessage.includes('timeout') || errorName === 'TimeoutError') {
-        userFriendlyError = '카메라 연결 시간 초과.';
-        helpText = '카메라가 응답하지 않습니다. 다시 시도해주세요.';
+      } else if (errorMessage.includes('timeout') || errorName === 'TimeoutError' || errorName === 'AbortError' || errorMessage.includes('Timeout starting video source')) {
+        userFriendlyError = '카메라 시작 시간 초과.';
+        helpText = '카메라가 다른 프로그램(Zoom, Teams, Skype 등)에서 사용 중이거나 응답하지 않습니다. 다른 프로그램을 종료한 후 다시 시도해주세요.';
       } else if (errorMessage.includes('NotReadableError') || errorName === 'NotReadableError') {
         userFriendlyError = '카메라가 다른 프로그램에서 사용 중입니다.';
         helpText = 'Zoom, Teams, Skype 등 다른 프로그램을 종료한 후 다시 시도해주세요.';
@@ -166,17 +200,31 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
                 다시 시도
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   // 브라우저 권한 설정 페이지로 안내
                   if (navigator.permissions) {
-                    navigator.permissions.query({ name: 'camera' as PermissionName }).then((result) => {
+                    try {
+                      const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
                       console.log('[카메라 권한 상태]', result.state);
                       if (result.state === 'prompt' || result.state === 'denied') {
                         alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
+                      } else if (result.state === 'granted') {
+                        // 권한은 있지만 타임아웃 발생한 경우
+                        try {
+                          const devices = await navigator.mediaDevices.enumerateDevices();
+                          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                          if (videoDevices.length === 0) {
+                            alert('카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요.');
+                          } else {
+                            alert(`카메라 ${videoDevices.length}개가 감지되었습니다.\n\n타임아웃 오류는 보통 다음 원인입니다:\n1. 다른 프로그램에서 카메라 사용 중\n2. 카메라 드라이버 문제\n3. 카메라 하드웨어 문제\n\n다른 프로그램을 종료하고 다시 시도해주세요.`);
+                          }
+                        } catch (e) {
+                          alert('카메라 목록을 확인할 수 없습니다. 다른 프로그램에서 카메라를 사용 중인지 확인해주세요.');
+                        }
                       }
-                    }).catch(() => {
+                    } catch (e) {
                       alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
-                    });
+                    }
                   } else {
                     alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
                   }
