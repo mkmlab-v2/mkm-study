@@ -171,12 +171,13 @@ async function getOptimalOllamaURL(): Promise<string> {
     return cachedOllamaURL;
   }
 
-  // 로컬 Ollama 연결 시도 (2초 타임아웃으로 증가)
+  // 개발 환경: 로컬 우선 → VPS 폴백 (하이브리드 전략)
+  // 로컬 Ollama 연결 시도 (2초 타임아웃)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // 1초 → 2초로 증가
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     
-    console.log('[Ollama] 로컬 Ollama 연결 시도 중...', LOCAL_OLLAMA_URL);
+    console.log('[Ollama] 개발 환경: 로컬 Ollama 연결 시도 중...', LOCAL_OLLAMA_URL);
     const response = await fetch(`${LOCAL_OLLAMA_URL}/api/tags`, {
       method: 'GET',
       signal: controller.signal
@@ -188,7 +189,7 @@ async function getOptimalOllamaURL(): Promise<string> {
       const data = await response.json().catch(() => ({}));
       const models = data.models || [];
       console.log('[Ollama] ✅ 로컬 연결 성공! 사용 가능한 모델:', models.map((m: any) => m.name).join(', '));
-      console.log('[Ollama] 로컬 우선 사용 (athena-merged-v1:latest 또는 llama3.1:8b)');
+      console.log('[Ollama] 개발 환경: 로컬 우선 사용 (athena-merged-v1:latest 또는 llama3.1:8b)');
       cachedOllamaURL = LOCAL_OLLAMA_URL;
       lastCheckTime = now;
       return LOCAL_OLLAMA_URL;
@@ -199,12 +200,13 @@ async function getOptimalOllamaURL(): Promise<string> {
     // 로컬 연결 실패 (타임아웃 또는 에러)
     const errorMsg = error instanceof Error ? error.message : 'Unknown';
     console.warn('[Ollama] ⚠️ 로컬 연결 실패:', errorMsg);
-    console.log('[Ollama] 로컬 Ollama가 실행 중이 아닐 수 있습니다. VPS로 폴백합니다.');
+    console.log('[Ollama] 개발 환경: 로컬 Ollama가 실행 중이 아닐 수 있습니다. VPS로 폴백합니다.');
   }
 
-  // 로컬 실패 시 VPS 사용
-  console.log('[Ollama] VPS Ollama 사용:', VPS_OLLAMA_URL);
+  // 개발 환경: 로컬 실패 시 VPS 사용 (폴백)
+  console.log('[Ollama] 개발 환경: VPS Ollama 사용 (폴백):', VPS_OLLAMA_URL);
   console.log('[Ollama] ⚠️ VPS 연결 시 CORS 문제가 발생할 수 있습니다.');
+  console.log('[Ollama] 💡 Tip: 로컬 Ollama를 실행하면 더 빠른 응답을 받을 수 있습니다.');
   cachedOllamaURL = VPS_OLLAMA_URL;
   lastCheckTime = now;
   return VPS_OLLAMA_URL;
@@ -291,19 +293,26 @@ export async function* askGemma3Streaming(
     ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
     : prompt;
   
-  // 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+  // 최적 Ollama URL 결정 (하이브리드 전략: 개발 로컬 우선, 프로덕션 VPS 우선)
   const ollamaURL = await getOptimalOllamaURL();
   
-  // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
-  // 로컬: athena-merged-v1:latest (주인님의 철학이 담긴 합체 모델) ⭐ 최우선
-  //       llama3.1:8b, gemma3:4b
-  // VPS: gemma3:4b
-  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL 
-    ? 'athena-merged-v1:latest'  // 🏛️ 아테나 합체 모델 (0.25 평형 최적화)
-    : 'gemma3:4b'; // VPS는 gemma3:4b
-  const fallbackModel = ollamaURL === LOCAL_OLLAMA_URL 
-    ? 'llama3.1:8b'  // 로컬 폴백: llama3.1:8b
-    : 'gemma3:4b';   // VPS 폴백: gemma3:4b
+  // 프로덕션 환경 감지
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  // 모델 선택 전략 (상용화 융합):
+  // - 프로덕션: gemma3:4b 고정 (상용화 안정성) ⭐
+  // - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
+  // - 개발(VPS 폴백): gemma3:4b
+  const preferredModel = isProduction
+    ? 'gemma3:4b'  // 프로덕션: 상용화 필수 모델 고정
+    : (ollamaURL === LOCAL_OLLAMA_URL 
+      ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
+      : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
+  const fallbackModel = isProduction
+    ? 'gemma3:4b'  // 프로덕션 폴백: gemma3:4b (동일 모델)
+    : (ollamaURL === LOCAL_OLLAMA_URL 
+      ? 'llama3.1:8b'  // 개발(로컬) 폴백: llama3.1:8b
+      : 'gemma3:4b');   // 개발(VPS) 폴백: gemma3:4b
   let currentModel = model || preferredModel;
   
   console.log('[Gemma3 Streaming] 요청 시작:', { 
@@ -456,20 +465,27 @@ export async function askGemma3(prompt: string, context?: string, model?: string
     ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
     : prompt;
   
-  // 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+  // 최적 Ollama URL 결정 (하이브리드 전략: 개발 로컬 우선, 프로덕션 VPS 우선)
   const ollamaURL = await getOptimalOllamaURL();
   
-  // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
-  // 로컬: athena-merged-v1:latest (주인님의 철학이 담긴 합체 모델) ⭐ 최우선
-  //       llama3.1:8b, gemma3:4b
-  // VPS: gemma3:4b
+  // 프로덕션 환경 감지
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  // 모델 선택 전략 (상용화 융합):
+  // - 프로덕션: gemma3:4b 고정 (상용화 안정성) ⭐
+  // - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
+  // - 개발(VPS 폴백): gemma3:4b
   const userModel = model; // 사용자가 지정한 모델 (mkm-math, mkm-english 등)
-  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL 
-    ? 'athena-merged-v1:latest'  // 🏛️ 아테나 합체 모델 (0.25 평형 최적화)
-    : 'gemma3:4b'; // VPS는 gemma3:4b
-  const fallbackModel = ollamaURL === LOCAL_OLLAMA_URL 
-    ? 'llama3.1:8b'  // 로컬 폴백: llama3.1:8b
-    : 'gemma3:4b';   // VPS 폴백: gemma3:4b
+  const preferredModel = isProduction
+    ? 'gemma3:4b'  // 프로덕션: 상용화 필수 모델 고정
+    : (ollamaURL === LOCAL_OLLAMA_URL 
+      ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
+      : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
+  const fallbackModel = isProduction
+    ? 'gemma3:4b'  // 프로덕션 폴백: gemma3:4b (동일 모델)
+    : (ollamaURL === LOCAL_OLLAMA_URL 
+      ? 'llama3.1:8b'  // 개발(로컬) 폴백: llama3.1:8b
+      : 'gemma3:4b');   // 개발(VPS) 폴백: gemma3:4b
   let currentModel = userModel || preferredModel; // 사용자 모델 우선
   let hasTriedFallback = false;
   
