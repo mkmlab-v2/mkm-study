@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target, AlertCircle } from 'lucide-react';
+import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target, AlertCircle, BookMarked, TrendingUp } from 'lucide-react';
 import { generateMathProblem, explainMathConcept } from '../utils/api';
 import { answerQuestion } from '../utils/api';
 import { adjustLearningDifficulty, isOptimalForLearning, convertRPPGResultToState } from '../utils/adaptiveLearningScheduler';
 import type { RPPGResult } from '../utils/rppgProcessor';
 import { findExamMappingsByUnit, generateExamMappingAlert } from '../data/examBackMapping';
+import { addWrongAnswer, getReviewRecommendations, markAsReviewed, getWrongAnswerStats } from '../utils/wrongAnswerNotebook';
 
 interface CurriculumUnit {
   unit: string;
@@ -140,6 +141,12 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
   const [isLoading, setIsLoading] = useState(false);
   const [learningSchedule, setLearningSchedule] = useState<ReturnType<typeof adjustLearningDifficulty> | null>(null);
   const [optimalCheck, setOptimalCheck] = useState<ReturnType<typeof isOptimalForLearning> | null>(null);
+  const [previousDifficulty, setPreviousDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
+  const [difficultyChangeNotification, setDifficultyChangeNotification] = useState<string | null>(null);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [showAnswerCheck, setShowAnswerCheck] = useState(false);
+  const [answerResult, setAnswerResult] = useState<'correct' | 'wrong' | null>(null);
+  const [wrongAnswerStats, setWrongAnswerStats] = useState(getWrongAnswerStats(subject));
 
   const curriculum = subject === 'math' ? DEFAULT_CURRICULUM : ENGLISH_CURRICULUM;
   const currentGradeUnits = curriculum[selectedGrade] || [];
@@ -156,9 +163,12 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
     }
   }, [subject]);
 
-  // RPPG 상태 기반 학습 스케줄링 업데이트
+  // RPPG 상태 기반 학습 스케줄링 업데이트 (debounce 적용)
   useEffect(() => {
-    if (rppgState) {
+    if (!rppgState) return;
+
+    // debounce: 2초마다 업데이트 (너무 빈번한 업데이트 방지)
+    const timeoutId = setTimeout(() => {
       // RPPGResult를 RPPGState로 변환
       const rppgStateForScheduler = convertRPPGResultToState(rppgState);
       
@@ -168,9 +178,30 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
       
       // 현재 난이도 가정 (medium)
       const schedule = adjustLearningDifficulty(rppgStateForScheduler, 'medium', subject);
+      
+      // 난이도 변경 감지 및 알림
+      if (previousDifficulty && previousDifficulty !== schedule.difficulty) {
+        const difficultyNames = { easy: '쉬움', medium: '중간', hard: '어려움' };
+        const prevName = difficultyNames[previousDifficulty];
+        const newName = difficultyNames[schedule.difficulty];
+        setDifficultyChangeNotification(
+          `난이도가 "${prevName}"에서 "${newName}"으로 변경되었습니다.\n${schedule.reason}`
+        );
+        // 5초 후 알림 자동 제거
+        setTimeout(() => setDifficultyChangeNotification(null), 5000);
+      }
+      
+      setPreviousDifficulty(schedule.difficulty);
       setLearningSchedule(schedule);
-    }
-  }, [rppgState, subject]);
+    }, 2000); // 2초 debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [rppgState, subject, previousDifficulty]);
+
+  // 오답 노트 통계 업데이트
+  useEffect(() => {
+    setWrongAnswerStats(getWrongAnswerStats(subject));
+  }, [subject]);
 
   // 진행 상황 저장
   const saveProgress = (grade: string, unit: string, topicIndex: number) => {
@@ -270,6 +301,34 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
     saveProgress(selectedGrade, unit, topicIndex);
     setCurrentProblem(null);
     setCurrentExplanation(null);
+    setUserAnswer('');
+    setShowAnswerCheck(false);
+    setAnswerResult(null);
+  };
+
+  // 오답 저장 헬퍼 함수 (나중에 정답 체크 기능과 통합)
+  const handleWrongAnswer = async (
+    problem: string,
+    userAnswer: string,
+    correctAnswer: string,
+    topic: string,
+    unit: string
+  ) => {
+    try {
+      await addWrongAnswer(
+        problem,
+        userAnswer,
+        correctAnswer,
+        subject,
+        topic,
+        unit,
+        currentExplanation || undefined
+      );
+      setWrongAnswerStats(getWrongAnswerStats(subject));
+      console.log('[오답 노트] 오답 저장 완료');
+    } catch (error) {
+      console.error('[오답 노트] 오답 저장 실패:', error);
+    }
   };
 
   const getUnitProgress = (unit: string): UnitProgress | null => {
@@ -305,9 +364,34 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
           </div>
         </div>
 
+        {/* 난이도 변경 알림 (토스트) */}
+        {difficultyChangeNotification && (
+          <div className="mb-4 animate-in slide-in-from-top-5 duration-300 rounded-2xl p-4 bg-blue-500/20 border-2 border-blue-500/50 shadow-lg shadow-blue-500/30">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">!</span>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-blue-300 mb-1">
+                  🔄 난이도 자동 조절
+                </div>
+                <div className="text-xs text-white whitespace-pre-line">
+                  {difficultyChangeNotification}
+                </div>
+              </div>
+              <button
+                onClick={() => setDifficultyChangeNotification(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* RPPG 기반 학습 스케줄링 알림 */}
         {learningSchedule && optimalCheck && (
-          <div className={`mb-4 rounded-2xl p-4 border-2 ${
+          <div className={`mb-4 rounded-2xl p-4 border-2 transition-all duration-300 ${
             optimalCheck.optimal 
               ? 'bg-green-500/10 border-green-500/50' 
               : 'bg-yellow-500/10 border-yellow-500/50'
@@ -323,8 +407,14 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
                 <div className="text-xs text-gray-300 mb-2">
                   {optimalCheck.reason}
                 </div>
-                <div className="text-xs text-blue-300 mb-1">
-                  💡 권장 난이도: <span className="font-bold">{learningSchedule.difficulty === 'easy' ? '쉬움' : learningSchedule.difficulty === 'medium' ? '중간' : '어려움'}</span>
+                <div className={`text-xs mb-1 font-bold transition-colors duration-300 ${
+                  learningSchedule.difficulty === 'easy' 
+                    ? 'text-green-300' 
+                    : learningSchedule.difficulty === 'medium'
+                    ? 'text-yellow-300'
+                    : 'text-red-300'
+                }`}>
+                  💡 권장 난이도: <span className="text-lg">{learningSchedule.difficulty === 'easy' ? '쉬움' : learningSchedule.difficulty === 'medium' ? '중간' : '어려움'}</span>
                 </div>
                 <div className="text-xs text-gray-400">
                   {learningSchedule.reason}
@@ -377,6 +467,46 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
                 style={{ width: `${gradeProgress}%` }}
               />
             </div>
+          </div>
+        )}
+
+        {/* 오답 노트 통계 */}
+        {wrongAnswerStats.total > 0 && (
+          <div className="mt-4 bg-red-500/10 rounded-2xl p-4 border border-red-500/30">
+            <div className="flex items-center gap-2 mb-3">
+              <BookMarked className="w-5 h-5 text-red-400" />
+              <h3 className="text-sm font-bold text-white">4D 증류 오답 노트</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <div className="text-gray-400">총 오답</div>
+                <div className="text-red-400 font-bold text-lg">{wrongAnswerStats.total}개</div>
+              </div>
+              <div>
+                <div className="text-gray-400">복습 필요</div>
+                <div className="text-yellow-400 font-bold text-lg">{wrongAnswerStats.needReviewCount}개</div>
+              </div>
+              <div>
+                <div className="text-gray-400">평균 숙련도</div>
+                <div className="text-blue-400 font-bold text-lg">
+                  {(wrongAnswerStats.averageMasteryLevel * 100).toFixed(0)}%
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-400">과목별</div>
+                <div className="text-purple-400 font-bold">
+                  수학 {wrongAnswerStats.bySubject.math}개 / 영어 {wrongAnswerStats.bySubject.english}개
+                </div>
+              </div>
+            </div>
+            {wrongAnswerStats.needReviewCount > 0 && (
+              <div className="mt-3 pt-3 border-t border-red-500/20">
+                <div className="flex items-center gap-2 text-xs text-yellow-300">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>복습이 필요한 오답이 {wrongAnswerStats.needReviewCount}개 있습니다. 복습을 권장합니다.</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
