@@ -11,8 +11,37 @@
       "destination": "/index.html"
     }
   ],
+  "headers": [
+    {
+      "source": "/api/ollama/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/ollama/(.*)",
+      "destination": "http://148.230.97.246:11434/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
   "env": {
-    "VITE_VPS_GEMMA3_URL": "http://148.230.97.246:11434",
+    "VITE_VPS_GEMMA3_URL": "/api/ollama",
     "VITE_API_BASE_URL": "http://148.230.97.246:8003"
   }
 }
