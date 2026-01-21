@@ -6,6 +6,7 @@ import { adjustLearningDifficulty, isOptimalForLearning, convertRPPGResultToStat
 import type { RPPGResult } from '../utils/rppgProcessor';
 import { findExamMappingsByUnit, generateExamMappingAlert } from '../data/examBackMapping';
 import { addWrongAnswer, getReviewRecommendations, markAsReviewed, getWrongAnswerStats } from '../utils/wrongAnswerNotebook';
+import { getTheoryFusionSelector, type TheoryConfig } from '../utils/theoryFusionSelector';
 
 interface CurriculumUnit {
   unit: string;
@@ -147,6 +148,7 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
   const [showAnswerCheck, setShowAnswerCheck] = useState(false);
   const [answerResult, setAnswerResult] = useState<'correct' | 'wrong' | null>(null);
   const [wrongAnswerStats, setWrongAnswerStats] = useState(getWrongAnswerStats(subject));
+  const [selectedTheories, setSelectedTheories] = useState<TheoryConfig[]>([]);
 
   const curriculum = subject === 'math' ? DEFAULT_CURRICULUM : ENGLISH_CURRICULUM;
   const currentGradeUnits = curriculum[selectedGrade] || [];
@@ -177,15 +179,39 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
       setOptimalCheck(optimal);
       
       // 현재 난이도 가정 (medium)
-      const schedule = adjustLearningDifficulty(rppgStateForScheduler, 'medium', subject);
+      let schedule = adjustLearningDifficulty(rppgStateForScheduler, 'medium', subject);
+      
+      // 🎼 TheoryFusionSelector 통합: 학습 난이도/과목별 이론 선택
+      const theorySelector = getTheoryFusionSelector();
+      const theories = theorySelector.selectTheoriesForLearning(schedule.difficulty, subject);
+      setSelectedTheories(theories);
+      
+      // 이론 가중치로 난이도 미세 조정
+      const adjustment = theorySelector.adjustDifficultyWithTheoryWeights(
+        schedule.difficulty,
+        subject,
+        theories
+      );
+      
+      // 조정된 난이도가 다르면 스케줄 업데이트
+      if (adjustment.adjustedDifficulty !== schedule.difficulty) {
+        schedule = adjustLearningDifficulty(
+          rppgStateForScheduler,
+          adjustment.adjustedDifficulty,
+          subject
+        );
+      }
       
       // 난이도 변경 감지 및 알림
       if (previousDifficulty && previousDifficulty !== schedule.difficulty) {
         const difficultyNames = { easy: '쉬움', medium: '중간', hard: '어려움' };
         const prevName = difficultyNames[previousDifficulty];
         const newName = difficultyNames[schedule.difficulty];
+        const theoryInfo = theories.length > 0 
+          ? `\n\n🎼 적용 이론: ${theories.map(t => t.description).join(', ')}`
+          : '';
         setDifficultyChangeNotification(
-          `난이도가 "${prevName}"에서 "${newName}"으로 변경되었습니다.\n${schedule.reason}`
+          `난이도가 "${prevName}"에서 "${newName}"으로 변경되었습니다.\n${schedule.reason}${theoryInfo}`
         );
         // 5초 후 알림 자동 제거
         setTimeout(() => setDifficultyChangeNotification(null), 5000);
@@ -422,6 +448,19 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
                 <div className="text-xs text-purple-300 mt-2">
                   📚 권장 활동: {learningSchedule.recommendedActivity}
                 </div>
+                {/* 🎼 TheoryFusionSelector: 적용된 이론 표시 */}
+                {selectedTheories.length > 0 && (
+                  <div className="text-xs text-blue-300 mt-2 pt-2 border-t border-blue-500/20">
+                    🎼 적용 이론:
+                    <div className="mt-1 space-y-1">
+                      {selectedTheories.map((theory, idx) => (
+                        <div key={idx} className="text-xs text-gray-300">
+                          • {theory.description} (가중치: {(theory.weight * 100).toFixed(0)}%)
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
