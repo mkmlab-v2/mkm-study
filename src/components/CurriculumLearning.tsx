@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target, AlertCircle, BookMarked, TrendingUp } from 'lucide-react';
+import { BookOpen, CheckCircle, Lock, Play, ArrowRight, GraduationCap, Target, AlertCircle, BookMarked, TrendingUp, MessageCircle, Lightbulb } from 'lucide-react';
 import { generateMathProblem, explainMathConcept } from '../utils/api';
 import { answerQuestion } from '../utils/api';
 import { adjustLearningDifficulty, isOptimalForLearning, convertRPPGResultToState } from '../utils/adaptiveLearningScheduler';
@@ -7,6 +7,7 @@ import type { RPPGResult } from '../utils/rppgProcessor';
 import { findExamMappingsByUnit, generateExamMappingAlert } from '../data/examBackMapping';
 import { addWrongAnswer, getReviewRecommendations, markAsReviewed, getWrongAnswerStats } from '../utils/wrongAnswerNotebook';
 import { getTheoryFusionSelector, type TheoryConfig } from '../utils/theoryFusionSelector';
+import { getSocraticTutor, type SocraticSession, type SocraticQuestion } from '../utils/socraticTutor';
 
 interface CurriculumUnit {
   unit: string;
@@ -149,6 +150,9 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
   const [answerResult, setAnswerResult] = useState<'correct' | 'wrong' | null>(null);
   const [wrongAnswerStats, setWrongAnswerStats] = useState(getWrongAnswerStats(subject));
   const [selectedTheories, setSelectedTheories] = useState<TheoryConfig[]>([]);
+  const [socraticSession, setSocraticSession] = useState<SocraticSession | null>(null);
+  const [socraticMode, setSocraticMode] = useState(false);
+  const [socraticFeedback, setSocraticFeedback] = useState<string | null>(null);
 
   const curriculum = subject === 'math' ? DEFAULT_CURRICULUM : ENGLISH_CURRICULUM;
   const currentGradeUnits = curriculum[selectedGrade] || [];
@@ -357,6 +361,75 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
     }
   };
 
+  // 소크라테스 튜터 세션 시작
+  const handleStartSocraticTutor = async () => {
+    if (!selectedTopic || !selectedUnit) return;
+    
+    setIsLoading(true);
+    try {
+      const tutor = getSocraticTutor();
+      const difficulty = learningSchedule?.difficulty || 'medium';
+      const session = await tutor.createSocraticSession(
+        selectedTopic,
+        subject,
+        difficulty,
+        currentProblem || undefined
+      );
+      setSocraticSession(session);
+      setSocraticMode(true);
+      setSocraticFeedback(null);
+    } catch (error) {
+      console.error('[소크라테스 튜터] 세션 생성 실패:', error);
+      alert('소크라테스 튜터를 시작할 수 없습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 소크라테스 튜터 답변 제출
+  const handleSocraticAnswer = async (answer: string) => {
+    if (!socraticSession) return;
+    
+    setIsLoading(true);
+    try {
+      const tutor = getSocraticTutor();
+      const currentQuestion = socraticSession.questions[socraticSession.currentQuestionIndex];
+      
+      // 학생 답변 평가
+      const evaluation = await tutor.evaluateStudentAnswer(
+        currentQuestion,
+        answer,
+        currentProblem || undefined
+      );
+      
+      setSocraticFeedback(evaluation.feedback);
+      
+      // 다음 질문 생성
+      if (evaluation.nextQuestion) {
+        const nextQuestion = await tutor.generateNextQuestion(
+          socraticSession,
+          answer,
+          currentProblem || undefined
+        );
+        
+        if (nextQuestion) {
+          const updatedSession = {
+            ...socraticSession,
+            questions: [...socraticSession.questions, nextQuestion],
+            currentQuestionIndex: socraticSession.currentQuestionIndex + 1,
+            studentAnswers: [...socraticSession.studentAnswers, answer]
+          };
+          setSocraticSession(updatedSession);
+        }
+      }
+    } catch (error) {
+      console.error('[소크라테스 튜터] 답변 평가 실패:', error);
+      setSocraticFeedback('답변을 평가하는 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getUnitProgress = (unit: string): UnitProgress | null => {
     const gradeProgress = progress[selectedGrade];
     if (!gradeProgress) return null;
@@ -509,7 +582,7 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
           </div>
         )}
 
-        {/* 오답 노트 통계 */}
+        {/* 오답 노트 통계 및 복습 추천 */}
         {wrongAnswerStats.total > 0 && (
           <div className="mt-4 bg-red-500/10 rounded-2xl p-4 border border-red-500/30">
             <div className="flex items-center gap-2 mb-3">
@@ -539,11 +612,44 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
               </div>
             </div>
             {wrongAnswerStats.needReviewCount > 0 && (
-              <div className="mt-3 pt-3 border-t border-red-500/20">
+              <div className="mt-3 pt-3 border-t border-red-500/20 space-y-2">
                 <div className="flex items-center gap-2 text-xs text-yellow-300">
                   <TrendingUp className="w-4 h-4" />
                   <span>복습이 필요한 오답이 {wrongAnswerStats.needReviewCount}개 있습니다. 복습을 권장합니다.</span>
                 </div>
+                {/* 복습 추천 문제 목록 */}
+                {(() => {
+                  const reviewRecommendations = getReviewRecommendations(subject, 3);
+                  if (reviewRecommendations.length > 0) {
+                    return (
+                      <div className="mt-2 space-y-2">
+                        <div className="text-xs font-bold text-white">📚 복습 추천 문제:</div>
+                        {reviewRecommendations.map((answer) => (
+                          <div
+                            key={answer.id}
+                            className="bg-gray-900/50 rounded-lg p-2 text-xs border border-gray-700"
+                          >
+                            <div className="text-gray-300 mb-1">
+                              <span className="font-bold text-white">{answer.topic}</span> - {answer.unit}
+                            </div>
+                            <div className="text-gray-400 line-clamp-2">
+                              {answer.problem.substring(0, 50)}...
+                            </div>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-yellow-400">
+                                숙련도: {(answer.masteryLevel * 100).toFixed(0)}%
+                              </span>
+                              <span className="text-gray-500">
+                                복습 {answer.reviewCount}회
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             )}
           </div>
@@ -674,36 +780,127 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
             </div>
           ) : (
             <div className="space-y-4">
-              {currentProblem && (
-                <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
-                  <div className="text-white whitespace-pre-line leading-relaxed">
-                    {currentProblem}
+              {/* 소크라테스 튜터 모드 */}
+              {socraticMode && socraticSession ? (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 border border-yellow-500/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="w-5 h-5 text-yellow-400" />
+                      <h4 className="text-yellow-400 font-bold">🏛️ 소크라테스 튜터 모드</h4>
+                    </div>
+                    <div className="text-xs text-gray-300 mb-3">
+                      정답을 직접 말하지 않고, 스스로 생각하도록 유도하는 질문을 받게 됩니다.
+                    </div>
+                    
+                    {/* 현재 질문 */}
+                    {socraticSession.questions[socraticSession.currentQuestionIndex] && (
+                      <div className="bg-gray-900 rounded-xl p-4 border border-gray-700 mb-4">
+                        <div className="text-white font-bold mb-2">
+                          질문 {socraticSession.currentQuestionIndex + 1}:
+                        </div>
+                        <div className="text-white whitespace-pre-line leading-relaxed">
+                          {socraticSession.questions[socraticSession.currentQuestionIndex].question}
+                        </div>
+                        {socraticSession.questions[socraticSession.currentQuestionIndex].hint && (
+                          <div className="mt-3 pt-3 border-t border-gray-700">
+                            <div className="text-xs text-yellow-300 mb-1">💡 힌트:</div>
+                            <div className="text-xs text-gray-300">
+                              {socraticSession.questions[socraticSession.currentQuestionIndex].hint}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* 피드백 */}
+                    {socraticFeedback && (
+                      <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
+                        <div className="text-blue-400 font-bold mb-2">💬 피드백:</div>
+                        <div className="text-gray-300 whitespace-pre-line leading-relaxed text-sm">
+                          {socraticFeedback}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 답변 입력 */}
+                    <div className="space-y-2">
+                      <textarea
+                        value={userAnswer}
+                        onChange={(e) => setUserAnswer(e.target.value)}
+                        placeholder="답변을 입력하세요..."
+                        className="w-full bg-gray-900 text-white rounded-xl p-3 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none"
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSocraticAnswer(userAnswer)}
+                          disabled={!userAnswer.trim() || isLoading}
+                          className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-2 rounded-xl font-bold hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          답변 제출
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSocraticMode(false);
+                            setSocraticSession(null);
+                            setSocraticFeedback(null);
+                            setUserAnswer('');
+                          }}
+                          className="px-4 bg-gray-700 text-white py-2 rounded-xl font-bold hover:bg-gray-600 transition-all"
+                        >
+                          종료
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
+              ) : (
+                /* 일반 학습 모드 */
+                <>
+                  {currentProblem && (
+                    <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+                      <div className="text-white whitespace-pre-line leading-relaxed">
+                        {currentProblem}
+                      </div>
+                    </div>
+                  )}
 
-              {currentExplanation && subject === 'math' && (
-                <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
-                  <h4 className="text-blue-400 font-bold mb-2">📚 개념 설명</h4>
-                  <div className="text-gray-300 whitespace-pre-line leading-relaxed">
-                    {currentExplanation}
-                  </div>
-                </div>
-              )}
+                  {currentExplanation && subject === 'math' && (
+                    <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
+                      <h4 className="text-blue-400 font-bold mb-2">📚 개념 설명</h4>
+                      <div className="text-gray-300 whitespace-pre-line leading-relaxed">
+                        {currentExplanation}
+                      </div>
+                    </div>
+                  )}
 
-              {selectedTopic && !isLoading && (
-                <button
-                  onClick={() => {
-                    const topicIndex = currentGradeUnits
-                      .find(u => u.unit === selectedUnit)!
-                      .topics.indexOf(selectedTopic);
-                    handleComplete(selectedUnit!, topicIndex);
-                  }}
-                  className="w-full bg-gradient-to-r from-green-500 to-teal-500 text-white py-3 rounded-xl font-bold hover:from-green-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  이 토픽 완료하기
-                </button>
+                  {/* 소크라테스 튜터 시작 버튼 */}
+                  {selectedTopic && !isLoading && currentProblem && (
+                    <button
+                      onClick={handleStartSocraticTutor}
+                      className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-3 rounded-xl font-bold hover:from-yellow-600 hover:to-orange-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Lightbulb className="w-5 h-5" />
+                      🏛️ 소크라테스 튜터 시작
+                    </button>
+                  )}
+
+                  {selectedTopic && !isLoading && (
+                    <button
+                      onClick={() => {
+                        const topicIndex = currentGradeUnits
+                          .find(u => u.unit === selectedUnit)!
+                          .topics.indexOf(selectedTopic);
+                        handleComplete(selectedUnit!, topicIndex);
+                      }}
+                      className="w-full bg-gradient-to-r from-green-500 to-teal-500 text-white py-3 rounded-xl font-bold hover:from-green-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      이 토픽 완료하기
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
