@@ -225,10 +225,15 @@ export async function* askGemma3Streaming(
   const ollamaURL = await getOptimalOllamaURL();
   
   // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
-  // 로컬: llama3.1:8b, gemma3:4b, athena-merged-v1:latest
+  // 로컬: athena-merged-v1:latest (주인님의 철학이 담긴 합체 모델) ⭐ 최우선
+  //       llama3.1:8b, gemma3:4b
   // VPS: gemma3:4b
-  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL ? 'llama3.1:8b' : 'gemma3:4b'; // 로컬이면 더 큰 모델 사용
-  const fallbackModel = 'gemma3:4b'; // 양쪽 모두 설치됨
+  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL 
+    ? 'athena-merged-v1:latest'  // 🏛️ 아테나 합체 모델 (0.25 평형 최적화)
+    : 'gemma3:4b'; // VPS는 gemma3:4b
+  const fallbackModel = ollamaURL === LOCAL_OLLAMA_URL 
+    ? 'llama3.1:8b'  // 로컬 폴백: llama3.1:8b
+    : 'gemma3:4b';   // VPS 폴백: gemma3:4b
   let currentModel = model || preferredModel;
   
   console.log('[Gemma3 Streaming] 요청 시작:', { 
@@ -365,11 +370,16 @@ export async function askGemma3(prompt: string, context?: string, model?: string
   const ollamaURL = await getOptimalOllamaURL();
   
   // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
-  // 로컬: llama3.1:8b, gemma3:4b, athena-merged-v1:latest
+  // 로컬: athena-merged-v1:latest (주인님의 철학이 담긴 합체 모델) ⭐ 최우선
+  //       llama3.1:8b, gemma3:4b
   // VPS: gemma3:4b
   const userModel = model; // 사용자가 지정한 모델 (mkm-math, mkm-english 등)
-  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL ? 'llama3.1:8b' : 'gemma3:4b'; // 로컬이면 더 큰 모델 사용
-  const fallbackModel = 'gemma3:4b'; // 양쪽 모두 설치됨
+  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL 
+    ? 'athena-merged-v1:latest'  // 🏛️ 아테나 합체 모델 (0.25 평형 최적화)
+    : 'gemma3:4b'; // VPS는 gemma3:4b
+  const fallbackModel = ollamaURL === LOCAL_OLLAMA_URL 
+    ? 'llama3.1:8b'  // 로컬 폴백: llama3.1:8b
+    : 'gemma3:4b';   // VPS 폴백: gemma3:4b
   let currentModel = userModel || preferredModel; // 사용자 모델 우선
   let hasTriedFallback = false;
   
