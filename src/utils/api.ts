@@ -111,11 +111,13 @@ async function getOptimalOllamaURL(): Promise<string> {
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   
   if (isProduction) {
-    // 프로덕션 환경: 로컬 체크 생략, 바로 VPS 사용
-    console.log('[Ollama] 프로덕션 환경 감지, VPS 직접 사용:', VPS_OLLAMA_URL);
-    cachedOllamaURL = VPS_OLLAMA_URL;
+    // 프로덕션 환경: Vercel 프록시 사용 (/api/ollama → VPS Ollama)
+    // 환경 변수로 이미 설정되어 있으면 그대로 사용
+    const productionURL = import.meta.env.VITE_VPS_GEMMA3_URL || '/api/ollama';
+    console.log('[Ollama] 프로덕션 환경 감지, 프록시 사용:', productionURL);
+    cachedOllamaURL = productionURL;
     lastCheckTime = Date.now();
-    return VPS_OLLAMA_URL;
+    return productionURL;
   }
 
   // 개발 환경: 로컬 우선 → VPS 폴백
