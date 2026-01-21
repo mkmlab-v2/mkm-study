@@ -58,23 +58,38 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
         // 계속 진행 (권한이 없어도 시도)
       }
 
-      // 타임아웃을 위한 AbortController 사용
+      // 모바일 환경 감지
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.log('[카메라] 환경:', isMobile ? '모바일' : '데스크톱');
+
+      // 타임아웃을 위한 AbortController 사용 (모바일은 더 긴 타임아웃)
       const controller = new AbortController();
+      const timeoutDuration = isMobile ? 30000 : 20000; // 모바일 30초, 데스크톱 20초
       const timeoutId = setTimeout(() => {
         console.warn('[카메라] 타임아웃 발생, 요청 취소');
         controller.abort();
-      }, 10000); // 10초 타임아웃
+      }, timeoutDuration);
 
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user'
-          },
+        // 최소한의 설정으로 시도 (호환성 최대화)
+        const constraints: MediaStreamConstraints = {
+          video: isMobile 
+            ? {
+                // 모바일: facingMode만 지정
+                facingMode: { ideal: 'user' }
+              }
+            : {
+                // 데스크톱: 해상도 제한 없이 최소 설정
+                width: { min: 160, ideal: 640, max: 1920 },
+                height: { min: 120, ideal: 480, max: 1080 }
+              },
           audio: false
-        }, {
+        };
+
+        console.log('[카메라] 제약 조건:', JSON.stringify(constraints, null, 2));
+        
+        stream = await navigator.mediaDevices.getUserMedia(constraints, {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
