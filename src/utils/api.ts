@@ -86,7 +86,8 @@ export function getMockPrediction(currentState: Vector4D, steps: number = 10): V
 }
 
 // 하이브리드 Ollama 전략: 로컬 우선 → VPS 폴백
-const LOCAL_OLLAMA_URL = 'http://localhost:11434';
+// 로컬 개발 환경: Vite 프록시 사용 (/api/ollama → localhost:11434)
+const LOCAL_OLLAMA_URL = '/api/ollama';  // Vite 프록시 사용 (CORS 해결)
 const VPS_OLLAMA_URL = 'http://148.230.97.246:11434';
 const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || VPS_OLLAMA_URL; // 환경 변수로 강제 설정 가능
 
