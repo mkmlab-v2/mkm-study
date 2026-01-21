@@ -436,7 +436,14 @@ export default function MKMStudyApp() {
                 마이크 버튼을 길게 눌러 질문하세요!
               </p>
               <div className="bg-gray-800/50 rounded-xl p-3 text-xs text-gray-300">
-                💡 Tip: VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.
+                💡 Tip: {(() => {
+                  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+                  if (isProduction) {
+                    return 'VPS Gemma3 AI가 현재 4D 벡터 상태를 고려하여 답변합니다.';
+                  } else {
+                    return '로컬 Ollama(athena-merged-v1) 우선 사용, 실패 시 VPS Gemma3로 자동 전환됩니다.';
+                  }
+                })()}
               </div>
               {(() => {
                 const stats = getConversationStats();

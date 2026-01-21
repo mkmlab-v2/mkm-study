@@ -114,7 +114,8 @@ async function getOptimalOllamaURL(): Promise<string> {
     // 프로덕션 환경: Vercel 프록시 사용 (/api/ollama → VPS Ollama)
     // 환경 변수로 이미 설정되어 있으면 그대로 사용
     const productionURL = import.meta.env.VITE_VPS_GEMMA3_URL || '/api/ollama';
-    console.log('[Ollama] 프로덕션 환경 감지, 프록시 사용:', productionURL);
+    console.log('[Ollama] 프로덕션 환경 감지, Vercel 프록시 사용:', productionURL);
+    console.log('[Ollama] Vercel 프록시는 /api/ollama → http://148.230.97.246:11434로 리라이트됩니다');
     cachedOllamaURL = productionURL;
     lastCheckTime = Date.now();
     return productionURL;
@@ -128,11 +129,12 @@ async function getOptimalOllamaURL(): Promise<string> {
     return cachedOllamaURL;
   }
 
-  // 로컬 Ollama 연결 시도 (1초 타임아웃)
+  // 로컬 Ollama 연결 시도 (2초 타임아웃으로 증가)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // 1초 → 2초로 증가
     
+    console.log('[Ollama] 로컬 Ollama 연결 시도 중...', LOCAL_OLLAMA_URL);
     const response = await fetch(`${LOCAL_OLLAMA_URL}/api/tags`, {
       method: 'GET',
       signal: controller.signal
@@ -141,18 +143,26 @@ async function getOptimalOllamaURL(): Promise<string> {
     clearTimeout(timeoutId);
     
     if (response.ok) {
-      console.log('[Ollama] 로컬 연결 성공, 로컬 우선 사용');
+      const data = await response.json().catch(() => ({}));
+      const models = data.models || [];
+      console.log('[Ollama] ✅ 로컬 연결 성공! 사용 가능한 모델:', models.map((m: any) => m.name).join(', '));
+      console.log('[Ollama] 로컬 우선 사용 (athena-merged-v1:latest 또는 llama3.1:8b)');
       cachedOllamaURL = LOCAL_OLLAMA_URL;
       lastCheckTime = now;
       return LOCAL_OLLAMA_URL;
+    } else {
+      console.warn('[Ollama] 로컬 Ollama 응답 오류:', response.status, response.statusText);
     }
   } catch (error) {
     // 로컬 연결 실패 (타임아웃 또는 에러)
-    console.log('[Ollama] 로컬 연결 실패, VPS 폴백:', error instanceof Error ? error.message : 'Unknown');
+    const errorMsg = error instanceof Error ? error.message : 'Unknown';
+    console.warn('[Ollama] ⚠️ 로컬 연결 실패:', errorMsg);
+    console.log('[Ollama] 로컬 Ollama가 실행 중이 아닐 수 있습니다. VPS로 폴백합니다.');
   }
 
   // 로컬 실패 시 VPS 사용
-  console.log('[Ollama] VPS 사용:', VPS_OLLAMA_URL);
+  console.log('[Ollama] VPS Ollama 사용:', VPS_OLLAMA_URL);
+  console.log('[Ollama] ⚠️ VPS 연결 시 CORS 문제가 발생할 수 있습니다.');
   cachedOllamaURL = VPS_OLLAMA_URL;
   lastCheckTime = now;
   return VPS_OLLAMA_URL;
