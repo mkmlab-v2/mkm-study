@@ -21,6 +21,15 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
     setIsLoading(true);
     setError(null);
 
+    // mediaDevices API 지원 확인
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const errorMsg = '이 브라우저는 카메라 접근을 지원하지 않습니다. Chrome, Edge, Firefox 최신 버전을 사용해주세요.';
+      setError(errorMsg);
+      setIsLoading(false);
+      onError?.(errorMsg);
+      return;
+    }
+
     // 기존 스트림 정리
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -34,6 +43,8 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
     }
 
     try {
+      console.log('[카메라] 권한 요청 시작...');
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -42,6 +53,8 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
         },
         audio: false
       });
+
+      console.log('[카메라] 권한 허용됨, 스트림 획득 성공');
 
       streamRef.current = stream;
 
@@ -66,20 +79,43 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
         };
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
+      // 상세한 에러 로깅
+      console.error('[카메라 접근 오류]', err);
+      
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorName = err instanceof Error ? err.name : 'UnknownError';
+
+      console.log('[카메라 오류 상세]', {
+        name: errorName,
+        message: errorMessage,
+        fullError: err
+      });
 
       let userFriendlyError = '카메라에 접근할 수 없습니다.';
-      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
-        userFriendlyError = '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.';
-      } else if (errorMessage.includes('not found') || errorMessage.includes('NotFoundError')) {
-        userFriendlyError = '카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요.';
-      } else if (errorMessage.includes('timeout')) {
-        userFriendlyError = '카메라 연결 시간 초과. 다시 시도해주세요.';
-      } else if (errorMessage.includes('NotReadableError')) {
+      let helpText = '';
+
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError') || errorName === 'NotAllowedError') {
+        userFriendlyError = '카메라 권한이 거부되었습니다.';
+        helpText = '브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.';
+      } else if (errorMessage.includes('not found') || errorMessage.includes('NotFoundError') || errorName === 'NotFoundError') {
+        userFriendlyError = '카메라를 찾을 수 없습니다.';
+        helpText = '카메라가 연결되어 있는지 확인하고, 다른 프로그램에서 사용 중이 아닌지 확인해주세요.';
+      } else if (errorMessage.includes('timeout') || errorName === 'TimeoutError') {
+        userFriendlyError = '카메라 연결 시간 초과.';
+        helpText = '카메라가 응답하지 않습니다. 다시 시도해주세요.';
+      } else if (errorMessage.includes('NotReadableError') || errorName === 'NotReadableError') {
         userFriendlyError = '카메라가 다른 프로그램에서 사용 중입니다.';
+        helpText = 'Zoom, Teams, Skype 등 다른 프로그램을 종료한 후 다시 시도해주세요.';
+      } else if (errorMessage.includes('OverconstrainedError') || errorName === 'OverconstrainedError') {
+        userFriendlyError = '카메라 설정을 지원하지 않습니다.';
+        helpText = '다른 카메라를 선택하거나 브라우저를 업데이트해주세요.';
+      } else {
+        // 알 수 없는 오류
+        userFriendlyError = `카메라 접근 오류: ${errorName}`;
+        helpText = `오류 메시지: ${errorMessage}. 브라우저 콘솔(F12)에서 자세한 정보를 확인할 수 있습니다.`;
       }
 
-      setError(userFriendlyError);
+      setError(userFriendlyError + (helpText ? `\n\n${helpText}` : ''));
       setHasPermission(false);
       onError?.(userFriendlyError);
     } finally {
@@ -118,16 +154,41 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
 
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900 p-6">
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex flex-col items-center gap-3 text-center max-w-md">
             <AlertCircle className="w-12 h-12 text-red-500" />
-            <p className="text-white text-sm">{error}</p>
+            <p className="text-white text-sm whitespace-pre-line leading-relaxed">{error}</p>
             <CameraOff className="w-8 h-8 text-gray-500 mt-2" />
-            <button
-              onClick={startCamera}
-              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-            >
-              다시 시도
-            </button>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={startCamera}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+              >
+                다시 시도
+              </button>
+              <button
+                onClick={() => {
+                  // 브라우저 권한 설정 페이지로 안내
+                  if (navigator.permissions) {
+                    navigator.permissions.query({ name: 'camera' as PermissionName }).then((result) => {
+                      console.log('[카메라 권한 상태]', result.state);
+                      if (result.state === 'prompt' || result.state === 'denied') {
+                        alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
+                      }
+                    }).catch(() => {
+                      alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
+                    });
+                  } else {
+                    alert('브라우저 주소창 왼쪽 자물쇠 아이콘을 클릭하여 카메라 권한을 허용해주세요.');
+                  }
+                }}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+              >
+                권한 확인
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              💡 F12를 눌러 콘솔에서 자세한 오류 정보를 확인할 수 있습니다.
+            </p>
           </div>
         </div>
       )}
