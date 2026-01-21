@@ -151,7 +151,12 @@ export default function RPPGVideoFeed({ onStreamReady, onError, onHeartRate }: R
         helpText = '카메라가 연결되어 있는지 확인하고, 다른 프로그램에서 사용 중이 아닌지 확인해주세요.';
       } else if (errorMessage.includes('timeout') || errorName === 'TimeoutError' || errorName === 'AbortError' || errorMessage.includes('Timeout starting video source')) {
         userFriendlyError = '카메라 시작 시간 초과.';
-        helpText = '카메라가 다른 프로그램(Zoom, Teams, Skype 등)에서 사용 중이거나 응답하지 않습니다. 다른 프로그램을 종료한 후 다시 시도해주세요.';
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+          helpText = '휴대폰 카메라가 응답하지 않습니다.\n\n해결 방법:\n1. 다른 앱에서 카메라를 사용 중인지 확인\n2. 카메라 앱을 열어서 정상 작동 확인\n3. 브라우저 앱 재시작\n4. 휴대폰 재시작';
+        } else {
+          helpText = 'PC 웹캠이 응답하지 않습니다.\n\n해결 방법:\n1. 다른 프로그램(Zoom, Teams, Skype 등) 종료\n2. 작업 관리자에서 카메라 프로세스 확인\n3. 웹캠 드라이버 업데이트\n4. PC 재시작\n\n💡 팁: 휴대폰으로 접속하면 더 안정적으로 작동할 수 있습니다.';
+        }
       } else if (errorMessage.includes('NotReadableError') || errorName === 'NotReadableError') {
         userFriendlyError = '카메라가 다른 프로그램에서 사용 중입니다.';
         helpText = 'Zoom, Teams, Skype 등 다른 프로그램을 종료한 후 다시 시도해주세요.';
