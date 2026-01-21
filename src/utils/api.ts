@@ -87,9 +87,10 @@ export function getMockPrediction(currentState: Vector4D, steps: number = 10): V
 
 // 하이브리드 Ollama 전략: 로컬 우선 → VPS 폴백
 // 로컬 개발 환경: Vite 프록시 사용 (/api/ollama → localhost:11434)
-const LOCAL_OLLAMA_URL = '/api/ollama';  // Vite 프록시 사용 (CORS 해결)
-const VPS_OLLAMA_URL = 'http://148.230.97.246:11434';
-const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || VPS_OLLAMA_URL; // 환경 변수로 강제 설정 가능
+const LOCAL_OLLAMA_URL = '/api/ollama';  // 프록시 사용 (CORS 해결)
+const VPS_OLLAMA_URL = 'http://148.230.97.246:11434';  // 직접 접근 (CORS 문제 가능)
+// 프로덕션에서는 Vercel 프록시(/api/ollama) 사용, 개발 환경에서는 Vite 프록시 사용
+const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || '/api/ollama'; // 환경 변수 또는 프록시 사용
 
 // 로컬 Ollama 연결 확인 (1초 타임아웃)
 let cachedOllamaURL: string | null = null;
