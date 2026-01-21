@@ -110,12 +110,54 @@ async function getOptimalOllamaURL(): Promise<string> {
   // 프로덕션 환경 감지 (Vercel 배포 환경)
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   
+  // Tailscale IP를 통한 로컬 Ollama 접근 (프로덕션 환경에서도 시도)
+  const tailscaleLocalURL = import.meta.env.VITE_LOCAL_OLLAMA_URL; // 예: http://100.118.13.22:11434
+  
+  if (isProduction && tailscaleLocalURL) {
+    // 프로덕션 환경 + Tailscale 설정: 로컬 Ollama 시도 (타임아웃 짧게)
+    console.log('[Ollama] 프로덕션 환경 감지, Tailscale 로컬 Ollama 시도:', tailscaleLocalURL);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5초 타임아웃 (프로덕션은 짧게)
+      
+      const response = await fetch(`${tailscaleLocalURL}/api/tags`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const models = data.models || [];
+        console.log('[Ollama] ✅ Tailscale 로컬 연결 성공! 사용 가능한 모델:', models.map((m: any) => m.name).join(', '));
+        console.log('[Ollama] 프로덕션에서 로컬 Ollama 사용 (주권 확립)');
+        cachedOllamaURL = tailscaleLocalURL;
+        lastCheckTime = Date.now();
+        return tailscaleLocalURL;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown';
+      console.warn('[Ollama] ⚠️ Tailscale 로컬 연결 실패:', errorMsg);
+      console.log('[Ollama] VPS로 폴백합니다.');
+    }
+    
+    // Tailscale 로컬 실패 시 VPS 폴백
+    const productionURL = '/api/ollama';
+    console.log('[Ollama] 프로덕션 환경, Vercel 프록시 사용:', productionURL);
+    console.log('[Ollama] Vercel 프록시는 /api/ollama → http://148.230.97.246:11434로 리라이트됩니다');
+    cachedOllamaURL = productionURL;
+    lastCheckTime = Date.now();
+    return productionURL;
+  }
+  
   if (isProduction) {
     // 프로덕션 환경: Vercel 프록시 사용 (/api/ollama → VPS Ollama)
-    // 환경 변수로 이미 설정되어 있으면 그대로 사용
-    const productionURL = import.meta.env.VITE_VPS_GEMMA3_URL || '/api/ollama';
+    // Tailscale 설정이 없는 경우
+    const productionURL = '/api/ollama';
     console.log('[Ollama] 프로덕션 환경 감지, Vercel 프록시 사용:', productionURL);
     console.log('[Ollama] Vercel 프록시는 /api/ollama → http://148.230.97.246:11434로 리라이트됩니다');
+    console.log('[Ollama] 💡 Tip: Tailscale 설정 시 VITE_LOCAL_OLLAMA_URL 환경 변수를 설정하면 로컬 우선 사용 가능');
     cachedOllamaURL = productionURL;
     lastCheckTime = Date.now();
     return productionURL;
