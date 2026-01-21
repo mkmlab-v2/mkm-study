@@ -102,12 +102,26 @@ const CACHE_DURATION = 30000; // 30초 캐시
 async function getOptimalOllamaURL(): Promise<string> {
   // 환경 변수로 강제 설정된 경우 그대로 사용
   if (import.meta.env.VITE_VPS_GEMMA3_URL) {
+    console.log('[Ollama] 환경 변수로 강제 설정:', import.meta.env.VITE_VPS_GEMMA3_URL);
     return import.meta.env.VITE_VPS_GEMMA3_URL;
   }
 
+  // 프로덕션 환경 감지 (Vercel 배포 환경)
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  if (isProduction) {
+    // 프로덕션 환경: 로컬 체크 생략, 바로 VPS 사용
+    console.log('[Ollama] 프로덕션 환경 감지, VPS 직접 사용:', VPS_OLLAMA_URL);
+    cachedOllamaURL = VPS_OLLAMA_URL;
+    lastCheckTime = Date.now();
+    return VPS_OLLAMA_URL;
+  }
+
+  // 개발 환경: 로컬 우선 → VPS 폴백
   // 캐시된 URL이 있고 아직 유효하면 재사용
   const now = Date.now();
   if (cachedOllamaURL && (now - lastCheckTime) < CACHE_DURATION) {
+    console.log('[Ollama] 캐시된 URL 재사용:', cachedOllamaURL);
     return cachedOllamaURL;
   }
 
@@ -352,7 +366,27 @@ export async function* askGemma3Streaming(
     }
   } catch (error: any) {
     console.error('[Gemma3 Streaming] 에러:', error);
-    yield `죄송합니다. AI 서버에 연결할 수 없습니다. (에러: ${error.message || '알 수 없는 오류'})`;
+    
+    // 에러 타입별 상세 메시지
+    let errorMessage = '알 수 없는 오류';
+    let helpText = '';
+    
+    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+      errorMessage = '요청 시간 초과';
+      helpText = 'VPS Ollama 서버 응답이 느립니다. 잠시 후 다시 시도해주세요.';
+    } else if (error.message?.includes('CORS') || error.message?.includes('cors')) {
+      errorMessage = 'CORS 오류';
+      helpText = '브라우저 보안 정책으로 인해 VPS 서버에 직접 접근할 수 없습니다. VPS Ollama 서버에 CORS 헤더 설정이 필요합니다.';
+    } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+      errorMessage = '네트워크 오류';
+      helpText = `VPS Ollama 서버(${VPS_OLLAMA_URL})에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.`;
+    } else {
+      errorMessage = error.message || '알 수 없는 오류';
+    }
+    
+    const fullErrorMsg = `죄송합니다. AI 서버에 연결할 수 없습니다.\n\n오류: ${errorMessage}${helpText ? `\n\n${helpText}` : ''}\n\n브라우저 콘솔(F12)에서 자세한 정보를 확인할 수 있습니다.`;
+    
+    yield fullErrorMsg;
   }
 }
 
@@ -472,7 +506,19 @@ export async function askGemma3(prompt: string, context?: string, model?: string
     url: ollamaURL
   });
   
-  return `죄송합니다. AI 서버에 연결할 수 없습니다. (에러: ${lastError?.message || '알 수 없는 오류'})
+  // 에러 타입별 상세 메시지
+  const errorMessage = lastError?.message || '알 수 없는 오류';
+  let helpText = '';
+  
+  if (lastError?.name === 'AbortError' || errorMessage.includes('aborted')) {
+    helpText = 'VPS Ollama 서버 응답이 느립니다. 잠시 후 다시 시도해주세요.';
+  } else if (errorMessage.includes('CORS') || errorMessage.includes('cors')) {
+    helpText = '브라우저 보안 정책으로 인해 VPS 서버에 직접 접근할 수 없습니다. VPS Ollama 서버에 CORS 헤더 설정이 필요합니다.';
+  } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+    helpText = `VPS Ollama 서버(${VPS_OLLAMA_URL})에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.`;
+  }
+  
+  return `죄송합니다. AI 서버에 연결할 수 없습니다.\n\n오류: ${errorMessage}${helpText ? `\n\n${helpText}` : ''}\n\n브라우저 콘솔(F12)에서 자세한 정보를 확인할 수 있습니다.`
   
 확인 사항:
 1. 로컬 Ollama 서버가 실행 중인지 확인: ${LOCAL_OLLAMA_URL}
