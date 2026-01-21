@@ -521,16 +521,41 @@ export default function CurriculumLearning({ subject, currentState, rppgState }:
                 <div className="text-xs text-purple-300 mt-2">
                   📚 권장 활동: {learningSchedule.recommendedActivity}
                 </div>
-                {/* 🎼 TheoryFusionSelector: 적용된 이론 표시 */}
+                {/* 🎼 TheoryFusionSelector: 적용된 이론 시각화 */}
                 {selectedTheories.length > 0 && (
                   <div className="text-xs text-blue-300 mt-2 pt-2 border-t border-blue-500/20">
-                    🎼 적용 이론:
-                    <div className="mt-1 space-y-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-bold">🎼 적용 이론:</span>
+                      <span className="text-gray-400 text-xs">
+                        {selectedTheories.length}개 이론 융합
+                      </span>
+                    </div>
+                    <div className="space-y-2">
                       {selectedTheories.map((theory, idx) => (
-                        <div key={idx} className="text-xs text-gray-300">
-                          • {theory.description} (가중치: {(theory.weight * 100).toFixed(0)}%)
+                        <div key={idx} className="bg-gray-900/50 rounded-lg p-2 border border-gray-700">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-white font-medium text-xs">
+                              {theory.theoryType.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                            <span className="text-blue-400 font-bold text-xs">
+                              {(theory.weight * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="text-gray-300 text-xs">
+                            {theory.description}
+                          </div>
+                          {/* 가중치 시각화 바 */}
+                          <div className="mt-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                              style={{ width: `${theory.weight * 100}%` }}
+                            />
+                          </div>
                         </div>
                       ))}
+                    </div>
+                    <div className="mt-2 text-xs text-gray-400 italic">
+                      💡 이론 가중치에 따라 학습 난이도가 자동 조정됩니다.
                     </div>
                   </div>
                 )}
