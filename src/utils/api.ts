@@ -85,10 +85,62 @@ export function getMockPrediction(currentState: Vector4D, steps: number = 10): V
   return predictions;
 }
 
-// VPS Gemma3 API 연결 (환경 변수 우선 사용)
-const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || 'http://148.230.97.246:11434';
+// 하이브리드 Ollama 전략: 로컬 우선 → VPS 폴백
+const LOCAL_OLLAMA_URL = 'http://localhost:11434';
+const VPS_OLLAMA_URL = 'http://148.230.97.246:11434';
+const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || VPS_OLLAMA_URL; // 환경 변수로 강제 설정 가능
 
-console.log('[API] VPS Gemma3 URL:', GEMMA3_URL);
+// 로컬 Ollama 연결 확인 (1초 타임아웃)
+let cachedOllamaURL: string | null = null;
+let lastCheckTime = 0;
+const CACHE_DURATION = 30000; // 30초 캐시
+
+/**
+ * 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+ */
+async function getOptimalOllamaURL(): Promise<string> {
+  // 환경 변수로 강제 설정된 경우 그대로 사용
+  if (import.meta.env.VITE_VPS_GEMMA3_URL) {
+    return import.meta.env.VITE_VPS_GEMMA3_URL;
+  }
+
+  // 캐시된 URL이 있고 아직 유효하면 재사용
+  const now = Date.now();
+  if (cachedOllamaURL && (now - lastCheckTime) < CACHE_DURATION) {
+    return cachedOllamaURL;
+  }
+
+  // 로컬 Ollama 연결 시도 (1초 타임아웃)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    
+    const response = await fetch(`${LOCAL_OLLAMA_URL}/api/tags`, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      console.log('[Ollama] 로컬 연결 성공, 로컬 우선 사용');
+      cachedOllamaURL = LOCAL_OLLAMA_URL;
+      lastCheckTime = now;
+      return LOCAL_OLLAMA_URL;
+    }
+  } catch (error) {
+    // 로컬 연결 실패 (타임아웃 또는 에러)
+    console.log('[Ollama] 로컬 연결 실패, VPS 폴백:', error instanceof Error ? error.message : 'Unknown');
+  }
+
+  // 로컬 실패 시 VPS 사용
+  console.log('[Ollama] VPS 사용:', VPS_OLLAMA_URL);
+  cachedOllamaURL = VPS_OLLAMA_URL;
+  lastCheckTime = now;
+  return VPS_OLLAMA_URL;
+}
+
+console.log('[API] 하이브리드 Ollama 전략 활성화 (로컬 우선 → VPS 폴백)');
 
 interface Gemma3Request {
   model: string;
@@ -111,11 +163,14 @@ interface Gemma3Response {
  * VPS Gemma3 연결 확인
  */
 export async function connectToVPSGemma3(): Promise<{ connected: boolean; model?: string; error?: string }> {
+  // 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+  const ollamaURL = await getOptimalOllamaURL();
+  
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${GEMMA3_URL}/api/tags`, {
+    const response = await fetch(`${ollamaURL}/api/tags`, {
       method: 'GET',
       signal: controller.signal
     });
@@ -166,11 +221,21 @@ export async function* askGemma3Streaming(
     ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
     : prompt;
   
-  console.log('[Gemma3 Streaming] 요청 시작:', { prompt: prompt.substring(0, 50) + '...', url: GEMMA3_URL });
+  // 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+  const ollamaURL = await getOptimalOllamaURL();
   
-  const preferredModel = 'llama3.2:3b';
-  const fallbackModel = 'gemma3:4b';
+  // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
+  // 로컬: llama3.1:8b, gemma3:4b, athena-merged-v1:latest
+  // VPS: gemma3:4b
+  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL ? 'llama3.1:8b' : 'gemma3:4b'; // 로컬이면 더 큰 모델 사용
+  const fallbackModel = 'gemma3:4b'; // 양쪽 모두 설치됨
   let currentModel = model || preferredModel;
+  
+  console.log('[Gemma3 Streaming] 요청 시작:', { 
+    prompt: prompt.substring(0, 50) + '...', 
+    url: ollamaURL,
+    model: currentModel
+  });
   
   try {
     const controller = new AbortController();
@@ -186,7 +251,7 @@ export async function* askGemma3Streaming(
       }
     };
 
-    const response = await fetch(`${GEMMA3_URL}/api/generate`, {
+    const response = await fetch(`${ollamaURL}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -206,7 +271,7 @@ export async function* askGemma3Streaming(
         console.log(`[Gemma3 Streaming] ${preferredModel} 모델 없음, ${fallbackModel}로 폴백 시도...`);
         currentModel = fallbackModel;
         
-        const fallbackResponse = await fetch(`${GEMMA3_URL}/api/generate`, {
+        const fallbackResponse = await fetch(`${ollamaURL}/api/generate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -296,14 +361,23 @@ export async function askGemma3(prompt: string, context?: string, model?: string
     ? `${context}\n\n사용자 질문: ${prompt}\n\n답변:`
     : prompt;
   
-  console.log('[Gemma3] 요청 시작:', { prompt: prompt.substring(0, 50) + '...', url: GEMMA3_URL });
+  // 최적 Ollama URL 결정 (로컬 우선 → VPS 폴백)
+  const ollamaURL = await getOptimalOllamaURL();
   
-  // 모델 선택: 사용자 지정 모델 우선, 없으면 llama3.2:3b, 최종 폴백 gemma3:4b
+  // 모델 선택: 사용자 지정 모델 우선, 없으면 로컬/VPS에 맞는 모델 선택
+  // 로컬: llama3.1:8b, gemma3:4b, athena-merged-v1:latest
+  // VPS: gemma3:4b
   const userModel = model; // 사용자가 지정한 모델 (mkm-math, mkm-english 등)
-  const preferredModel = 'llama3.2:3b';
-  const fallbackModel = 'gemma3:4b';
+  const preferredModel = ollamaURL === LOCAL_OLLAMA_URL ? 'llama3.1:8b' : 'gemma3:4b'; // 로컬이면 더 큰 모델 사용
+  const fallbackModel = 'gemma3:4b'; // 양쪽 모두 설치됨
   let currentModel = userModel || preferredModel; // 사용자 모델 우선
   let hasTriedFallback = false;
+  
+  console.log('[Gemma3] 요청 시작:', { 
+    prompt: prompt.substring(0, 50) + '...', 
+    url: ollamaURL,
+    model: currentModel
+  });
   
   let lastError: Error | null = null;
   
@@ -322,9 +396,9 @@ export async function askGemma3(prompt: string, context?: string, model?: string
         }
       };
 
-      console.log(`[Gemma3] 시도 ${attempt + 1}/${retryCount} (모델: ${currentModel})`, { url: `${GEMMA3_URL}/api/generate` });
+      console.log(`[Gemma3] 시도 ${attempt + 1}/${retryCount} (모델: ${currentModel})`, { url: `${ollamaURL}/api/generate` });
 
-      const response = await fetch(`${GEMMA3_URL}/api/generate`, {
+      const response = await fetch(`${ollamaURL}/api/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -367,7 +441,7 @@ export async function askGemma3(prompt: string, context?: string, model?: string
         name: error.name,
         isAbort: error.name === 'AbortError',
         currentModel,
-        url: `${GEMMA3_URL}/api/generate`
+        url: `${ollamaURL}/api/generate`
       });
       
       // 마지막 시도가 아니면 잠시 대기 후 재시도
@@ -384,15 +458,16 @@ export async function askGemma3(prompt: string, context?: string, model?: string
   console.error('[Gemma3] 모든 시도 실패:', {
     lastError: lastError?.message,
     retryCount,
-    url: GEMMA3_URL
+    url: ollamaURL
   });
   
   return `죄송합니다. AI 서버에 연결할 수 없습니다. (에러: ${lastError?.message || '알 수 없는 오류'})
   
 확인 사항:
-1. VPS Gemma3 서버가 실행 중인지 확인: ${GEMMA3_URL}
-2. 네트워크 연결 상태 확인
-3. 브라우저 콘솔에서 자세한 에러 메시지 확인`;
+1. 로컬 Ollama 서버가 실행 중인지 확인: ${LOCAL_OLLAMA_URL}
+2. VPS Ollama 서버가 실행 중인지 확인: ${VPS_OLLAMA_URL}
+3. 네트워크 연결 상태 확인
+4. 브라우저 콘솔에서 자세한 에러 메시지 확인`;
 }
 
 // 대화 히스토리 저장 (IndexedDB 또는 localStorage)
