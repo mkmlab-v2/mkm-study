@@ -85,12 +85,65 @@ export function getMockPrediction(currentState: Vector4D, steps: number = 10): V
   return predictions;
 }
 
+// ============================================
+// Zero-Knowledge API 통합
+// ============================================
+
+// Zero-Knowledge API 클라이언트 재export
+export {
+  ZeroKnowledgeClient,
+  getZeroKnowledgeClient,
+  encodeTextToIndex,
+  analyzeTextZeroKnowledge,
+  analyzeTextsZeroKnowledge,
+  type Domain as ZeroKnowledgeDomain,
+  type Operation as ZeroKnowledgeOperation,
+  type IndexRequest,
+  type IndexResponse,
+  type HealthResponse,
+  type CacheStatsResponse,
+  type EncodeRequest,
+  type EncodeResponse
+} from './zeroKnowledgeClient';
+
 // 하이브리드 Ollama 전략: 로컬 우선 → VPS 폴백
 // 로컬 개발 환경: Vite 프록시 사용 (/api/ollama → localhost:11434)
 const LOCAL_OLLAMA_URL = '/api/ollama';  // 프록시 사용 (CORS 해결)
 const VPS_OLLAMA_URL = 'http://148.230.97.246:11434';  // 직접 접근 (CORS 문제 가능)
 // 프로덕션에서는 Vercel 프록시(/api/ollama) 사용, 개발 환경에서는 Vite 프록시 사용
 const GEMMA3_URL = import.meta.env.VITE_VPS_GEMMA3_URL || '/api/ollama'; // 환경 변수 또는 프록시 사용
+
+// GPU 가속 모드 설정 (localStorage 사용)
+const GPU_ACCELERATION_STORAGE_KEY = 'gpu_acceleration_enabled';
+
+/**
+ * GPU 가속 모드 설정 로드 (localStorage)
+ */
+export function loadGpuAccelerationSetting(): boolean {
+  try {
+    const stored = localStorage.getItem(GPU_ACCELERATION_STORAGE_KEY);
+    if (stored !== null) {
+      return stored === 'true';
+    }
+    // 기본값: 활성화 (황제 전용 고속도로)
+    return true;
+  } catch (error) {
+    console.warn('⚠️ GPU 가속 모드 설정 로드 실패:', error);
+    return true; // Fallback: 활성화
+  }
+}
+
+/**
+ * GPU 가속 모드 설정 저장 (localStorage)
+ */
+export function saveGpuAccelerationSetting(enabled: boolean): void {
+  try {
+    localStorage.setItem(GPU_ACCELERATION_STORAGE_KEY, enabled.toString());
+    console.log(`✅ GPU 가속 모드 설정 저장: ${enabled ? '활성화' : '비활성화'}`);
+  } catch (error) {
+    console.warn('⚠️ GPU 가속 모드 설정 저장 실패:', error);
+  }
+}
 
 // 로컬 Ollama 연결 확인 (1초 타임아웃)
 let cachedOllamaURL: string | null = null;
@@ -299,18 +352,37 @@ export async function* askGemma3Streaming(
   // 프로덕션 환경 감지
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   
-  // 모델 선택 전략 (상용화 융합):
-  // - 프로덕션: gemma3:4b 고정 (상용화 안정성) ⭐
-  // - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
-  // - 개발(VPS 폴백): gemma3:4b
-  const preferredModel = isProduction
-    ? 'gemma3:4b'  // 프로덕션: 상용화 필수 모델 고정
-    : (ollamaURL === LOCAL_OLLAMA_URL 
-      ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
-      : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
+  // GPU 가속 모드 설정 로드 (스위치로 제어)
+  const gpuAccelerationEnabled = loadGpuAccelerationSetting();
+  
+  // Tailscale 로컬 연결 감지 (프로덕션에서도 로컬 Ollama 사용 가능)
+  // Tailscale IP 범위: 100.64.0.0/10 (100.64.0.0 ~ 100.127.255.255)
+  const isTailscaleLocal = 
+    ollamaURL.includes('tailscale') ||
+    /^http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(ollamaURL);
+  const isLocalConnection = ollamaURL === LOCAL_OLLAMA_URL || isTailscaleLocal;
+  
+  // 모델 선택 전략 (상용화 융합 + GPU 가속 모드 스위치):
+  // - GPU 가속 모드 비활성화: 무조건 VPS 모델 (gemma3:4b)
+  // - GPU 가속 모드 활성화:
+  //   - 프로덕션(VPS): gemma3:4b 고정 (상용화 안정성) ⭐
+  //   - 프로덕션(Tailscale 로컬): athena-merged-v1:latest (주권 확립, 로컬 모델 사용)
+  //   - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
+  //   - 개발(VPS 폴백): gemma3:4b
+  const preferredModel = !gpuAccelerationEnabled
+    ? 'gemma3:4b'  // GPU 가속 모드 비활성화: 무조건 VPS 모델
+    : isProduction
+      ? (isTailscaleLocal
+        ? 'athena-merged-v1:latest'  // 프로덕션(Tailscale 로컬): 주권 확립, 로컬 모델 사용
+        : 'gemma3:4b')  // 프로덕션(VPS): 상용화 필수 모델 고정
+      : (isLocalConnection
+        ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
+        : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
   const fallbackModel = isProduction
-    ? 'gemma3:4b'  // 프로덕션 폴백: gemma3:4b (동일 모델)
-    : (ollamaURL === LOCAL_OLLAMA_URL 
+    ? (isTailscaleLocal
+      ? 'llama3.1:8b'  // 프로덕션(Tailscale 로컬) 폴백: llama3.1:8b
+      : 'gemma3:4b')  // 프로덕션(VPS) 폴백: gemma3:4b (동일 모델)
+    : (isLocalConnection
       ? 'llama3.1:8b'  // 개발(로컬) 폴백: llama3.1:8b
       : 'gemma3:4b');   // 개발(VPS) 폴백: gemma3:4b
   let currentModel = model || preferredModel;
@@ -471,19 +543,38 @@ export async function askGemma3(prompt: string, context?: string, model?: string
   // 프로덕션 환경 감지
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   
-  // 모델 선택 전략 (상용화 융합):
-  // - 프로덕션: gemma3:4b 고정 (상용화 안정성) ⭐
-  // - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
-  // - 개발(VPS 폴백): gemma3:4b
+  // GPU 가속 모드 설정 로드 (스위치로 제어)
+  const gpuAccelerationEnabled = loadGpuAccelerationSetting();
+  
+  // Tailscale 로컬 연결 감지 (프로덕션에서도 로컬 Ollama 사용 가능)
+  // Tailscale IP 범위: 100.64.0.0/10 (100.64.0.0 ~ 100.127.255.255)
+  const isTailscaleLocal = 
+    ollamaURL.includes('tailscale') ||
+    /^http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(ollamaURL);
+  const isLocalConnection = ollamaURL === LOCAL_OLLAMA_URL || isTailscaleLocal;
+  
+  // 모델 선택 전략 (상용화 융합 + GPU 가속 모드 스위치):
+  // - GPU 가속 모드 비활성화: 무조건 VPS 모델 (gemma3:4b)
+  // - GPU 가속 모드 활성화:
+  //   - 프로덕션(VPS): gemma3:4b 고정 (상용화 안정성) ⭐
+  //   - 프로덕션(Tailscale 로컬): athena-merged-v1:latest (주권 확립, 로컬 모델 사용)
+  //   - 개발(로컬): athena-merged-v1:latest 우선 (개발 편의성)
+  //   - 개발(VPS 폴백): gemma3:4b
   const userModel = model; // 사용자가 지정한 모델 (mkm-math, mkm-english 등)
-  const preferredModel = isProduction
-    ? 'gemma3:4b'  // 프로덕션: 상용화 필수 모델 고정
-    : (ollamaURL === LOCAL_OLLAMA_URL 
-      ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
-      : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
+  const preferredModel = !gpuAccelerationEnabled
+    ? 'gemma3:4b'  // GPU 가속 모드 비활성화: 무조건 VPS 모델
+    : isProduction
+      ? (isTailscaleLocal
+        ? 'athena-merged-v1:latest'  // 프로덕션(Tailscale 로컬): 주권 확립, 로컬 모델 사용
+        : 'gemma3:4b')  // 프로덕션(VPS): 상용화 필수 모델 고정
+      : (isLocalConnection
+        ? 'athena-merged-v1:latest'  // 개발(로컬): 아테나 합체 모델 (0.25 평형 최적화)
+        : 'gemma3:4b'); // 개발(VPS 폴백): gemma3:4b
   const fallbackModel = isProduction
-    ? 'gemma3:4b'  // 프로덕션 폴백: gemma3:4b (동일 모델)
-    : (ollamaURL === LOCAL_OLLAMA_URL 
+    ? (isTailscaleLocal
+      ? 'llama3.1:8b'  // 프로덕션(Tailscale 로컬) 폴백: llama3.1:8b
+      : 'gemma3:4b')  // 프로덕션(VPS) 폴백: gemma3:4b (동일 모델)
+    : (isLocalConnection
       ? 'llama3.1:8b'  // 개발(로컬) 폴백: llama3.1:8b
       : 'gemma3:4b');   // 개발(VPS) 폴백: gemma3:4b
   let currentModel = userModel || preferredModel; // 사용자 모델 우선

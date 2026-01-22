@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BookOpen, MessageCircle, HelpCircle, BarChart3, Mic } from 'lucide-react';
+import { BookOpen, MessageCircle, HelpCircle, BarChart3, Mic, Settings } from 'lucide-react';
 import ZodiacEvolution from './ZodiacEvolution';
 import CharacterSelection from './CharacterSelection';
 import UserProfileForm, { UserProfile } from './UserProfileForm';
@@ -9,6 +9,9 @@ import MathLearning from './MathLearning';
 import EnglishLearning from './EnglishLearning';
 import CurriculumLearning from './CurriculumLearning';
 import RPPGVideoFeed from './RPPGVideoFeed';
+import TutorManifesto from './TutorManifesto';
+import InteractiveTutor from './InteractiveTutor';
+import AdvancedSettings from './AdvancedSettings';
 import { Vector4D, ZodiacAnimal, CharacterTrait, CoinBalance } from '../utils/types';
 import type { RPPGResult } from '../utils/rppgProcessor';
 import { createInitialEvolutionData, saveEvolutionData } from '../utils/evolutionEngine';
@@ -46,6 +49,8 @@ export default function MKMStudyApp() {
   const [confidenceAnalysis, setConfidenceAnalysis] = useState<ReturnType<typeof analyzeConfidence> | null>(null);
   const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
   const [tutorPersona, setTutorPersona] = useState<ReturnType<typeof getTutorPersona> | null>(null);
+  const [showManifesto, setShowManifesto] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
   const currentTabRef = useRef<TabType>('dashboard');
@@ -56,6 +61,12 @@ export default function MKMStudyApp() {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+
+    // Intro 페이지 표시 여부 확인 (최초 1회만 표시)
+    const hasSeenManifesto = localStorage.getItem('has-seen-manifesto');
+    if (!hasSeenManifesto) {
+      setShowManifesto(true);
+    }
 
     // 사용자 프로필 확인
     const savedProfile = localStorage.getItem('user-profile');
@@ -322,6 +333,22 @@ export default function MKMStudyApp() {
 
   const quote = motivationalQuotes[Math.floor(currentTime.getTime() / 60000) % motivationalQuotes.length];
 
+  // Intro 페이지 표시 (최초 1회만)
+  if (showManifesto) {
+    return (
+      <TutorManifesto
+        onClose={() => {
+          setShowManifesto(false);
+          localStorage.setItem('has-seen-manifesto', 'true');
+        }}
+        onGetStarted={() => {
+          setShowManifesto(false);
+          localStorage.setItem('has-seen-manifesto', 'true');
+        }}
+      />
+    );
+  }
+
   // 사용자 프로필이 없으면 프로필 입력 폼 표시
   if (!hasProfile) {
     return (
@@ -344,12 +371,25 @@ export default function MKMStudyApp() {
     <div className="min-h-screen bg-black text-white flex flex-col pb-24">
       <div className="flex-1 max-w-md mx-auto w-full px-4 py-6">
         {/* Header */}
-        <header className="text-center mb-6">
+        <header className="text-center mb-6 relative">
+          <button
+            onClick={() => setShowAdvancedSettings(true)}
+            className="absolute top-0 right-0 text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800/50 transition-colors"
+            aria-label="고급 설정"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           <h1 className="text-2xl font-bold mb-1 flex items-center justify-center gap-2">
             <BookOpen className="w-6 h-6 text-blue-500" />
-            MKM Study v2.0
+            초개인화 인지 최적화 튜터
           </h1>
-          <p className="text-gray-400 text-xs">지능형 평형 학습 요새</p>
+          <p className="text-gray-400 text-xs">당신의 뇌를 위한 공학적 학습 시스템</p>
+          <button
+            onClick={() => setShowManifesto(true)}
+            className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+          >
+            도움말 다시 보기
+          </button>
         </header>
 
         {/* Time Widget */}
@@ -391,6 +431,15 @@ export default function MKMStudyApp() {
 
         {currentTab === 'dashboard' && (
           <div className="space-y-4">
+            {/* 대화형 튜터 (최우선 표시) */}
+            <InteractiveTutor
+              currentState={currentState}
+              tutorPersona={tutorPersona}
+              onStartLearning={(subject) => {
+                setCurrentTab(subject === 'math' ? 'math' : 'english');
+              }}
+            />
+            
             <ZodiacEvolution studyTime={studyTime} focusScore={focusScore} />
             <FourDVectorDashboard currentState={currentState} />
             <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800/50">
@@ -688,6 +737,11 @@ export default function MKMStudyApp() {
           </div>
         </div>
       </div>
+
+      {/* 고급 설정 모달 */}
+      {showAdvancedSettings && (
+        <AdvancedSettings onClose={() => setShowAdvancedSettings(false)} />
+      )}
     </div>
   );
 }

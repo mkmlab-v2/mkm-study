@@ -174,7 +174,10 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
               <h2 className="text-xl font-bold">생년월일시 입력</h2>
             </div>
             <p className="text-sm text-gray-400 mb-6">
-              학습 리듬 및 집중력 주기 분석을 위한 생년월일시를 입력해주세요.
+              생체 역학적 스케줄링을 위한 생년월일시를 입력해주세요. 
+              <span className="block mt-2 text-xs text-blue-400">
+                💡 이 정보는 당신의 최적 학습 시간대(골든 타임) 계산에 사용됩니다.
+              </span>
             </p>
 
             <div className="space-y-4">
@@ -345,27 +348,33 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
           </div>
         )}
 
-        {/* Step 3: 학습 스타일 프로필 */}
+        {/* Step 3: 생체 리듬 및 신경전달 유형 분석 */}
         {step === 3 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
               <Stethoscope className="w-5 h-5 text-green-400" />
-              <h2 className="text-xl font-bold">학습 스타일 프로필</h2>
+              <h2 className="text-xl font-bold">생체 리듬 및 신경전달 유형 분석</h2>
             </div>
             <p className="text-sm text-gray-400 mb-6">
-              개인 맞춤형 학습 경로 설계를 위한 간단한 설문입니다.
+              당신의 인지 처리 패턴을 분석하여 최적의 학습 경로를 설계합니다. 
+              <span className="block mt-2 text-xs text-blue-400">
+                💡 이 정보는 당신의 뇌가 정보를 처리하는 고유한 방식을 파악하는 데 사용됩니다.
+              </span>
             </p>
 
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-3">
-                  1. 체형은 어떤 편인가요?
+                  1. 신진대사 유형 (Metabolic Type)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  신진대사는 학습 에너지 관리와 밀접한 관련이 있습니다.
+                </p>
                 <div className="space-y-2">
                   {[
-                    { value: 1, label: '마른 편' },
-                    { value: 2, label: '보통' },
-                    { value: 3, label: '통통한 편' },
+                    { value: 1, label: '고대사형 (빠른 신진대사)' },
+                    { value: 2, label: '균형형 (보통)' },
+                    { value: 3, label: '저대사형 (느린 신진대사)' },
                   ].map((option) => (
                     <label
                       key={option.value}
@@ -395,13 +404,16 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
 
               <div>
                 <label className="block text-sm font-medium mb-3">
-                  2. 체온은 어떤 편인가요?
+                  2. 체온 조절 능력 (Thermoregulation)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  체온 조절 능력은 집중력과 인지 성능에 영향을 미칩니다.
+                </p>
                 <div className="space-y-2">
                   {[
-                    { value: 1, label: '더위를 잘 탐' },
-                    { value: 2, label: '보통' },
-                    { value: 3, label: '추위를 잘 탐' },
+                    { value: 1, label: '고체온형 (더위에 강함)' },
+                    { value: 2, label: '균형형 (보통)' },
+                    { value: 3, label: '저체온형 (추위에 강함)' },
                   ].map((option) => (
                     <label
                       key={option.value}
@@ -431,13 +443,16 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
 
               <div>
                 <label className="block text-sm font-medium mb-3">
-                  3. 소화는 어떤 편인가요?
+                  3. 소화 효율 (Digestive Efficiency)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  소화 효율은 학습 중 에너지 공급과 밀접한 관련이 있습니다.
+                </p>
                 <div className="space-y-2">
                   {[
-                    { value: 1, label: '소화가 잘됨' },
-                    { value: 2, label: '보통' },
-                    { value: 3, label: '소화가 안됨' },
+                    { value: 1, label: '고효율형 (소화가 빠름)' },
+                    { value: 2, label: '균형형 (보통)' },
+                    { value: 3, label: '저효율형 (소화가 느림)' },
                   ].map((option) => (
                     <label
                       key={option.value}
@@ -467,13 +482,16 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
 
               <div>
                 <label className="block text-sm font-medium mb-3">
-                  4. 성격은 어떤 편인가요?
+                  4. 인지 처리 스타일 (Cognitive Processing Style)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  뇌가 정보를 처리하는 기본적인 방식을 파악합니다.
+                </p>
                 <div className="space-y-2">
                   {[
-                    { value: 1, label: '활발하고 외향적' },
-                    { value: 2, label: '보통' },
-                    { value: 3, label: '차분하고 내향적' },
+                    { value: 1, label: '고속 처리형 (빠른 반응, 외향적)' },
+                    { value: 2, label: '균형형 (보통)' },
+                    { value: 3, label: '심층 처리형 (신중한 반응, 내향적)' },
                   ].map((option) => (
                     <label
                       key={option.value}
@@ -503,13 +521,16 @@ export default function UserProfileForm({ onComplete }: UserProfileFormProps) {
 
               <div>
                 <label className="block text-sm font-medium mb-3">
-                  5. 수면 패턴은 어떤가요?
+                  5. 수면-각성 주기 (Sleep-Wake Cycle)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  수면 패턴은 학습 골든 타임 계산에 중요한 요소입니다.
+                </p>
                 <div className="space-y-2">
                   {[
-                    { value: 1, label: '적게 자도 됨' },
-                    { value: 2, label: '보통' },
-                    { value: 3, label: '많이 자야 함' },
+                    { value: 1, label: '단수면형 (짧은 수면으로 충분)' },
+                    { value: 2, label: '균형형 (보통)' },
+                    { value: 3, label: '장수면형 (긴 수면 필요)' },
                   ].map((option) => (
                     <label
                       key={option.value}
